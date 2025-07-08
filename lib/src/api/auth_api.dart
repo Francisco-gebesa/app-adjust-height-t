@@ -89,6 +89,22 @@ class AuthApi {
   ///
   /// Retorna un mapa con la respuesta de la API.
   static Future<Map<String, dynamic>> updateUserName(String newName) async {
+    return updateUserInfo(name: newName);
+  }
+
+  /// Actualiza la información del usuario (nombre y/o teléfono).
+  ///
+  /// Parámetros:
+  /// - `name`: Nombre del usuario (opcional).
+  /// - `countryCode`: Código de país (opcional, ej: +52).
+  /// - `phoneNumber`: Número de teléfono sin código de país (opcional).
+  ///
+  /// Retorna un mapa con la respuesta de la API.
+  static Future<Map<String, dynamic>> updateUserInfo({
+    String? name,
+    String? countryCode,
+    String? phoneNumber,
+  }) async {
     final url = Uri.parse('$baseUrl/session/user/updateinfo');
     final prefs = await SharedPreferences.getInstance();
 
@@ -98,17 +114,136 @@ class AuthApi {
       return {'success': false, 'type': 'SESSION_EXPIRED'};
     }
 
+    // Construir el body con los campos proporcionados
+    Map<String, dynamic> body = {};
+    
+    // Si se está actualizando el teléfono pero no se proporciona nombre, 
+    // intentar obtenerlo de SharedPreferences
+    if (name != null) {
+      body['sName'] = name;
+    } else if ((countryCode != null || phoneNumber != null)) {
+      // Si se actualiza el teléfono sin nombre, obtener el nombre actual
+      final userInfo = prefs.getString('user_info');
+      if (userInfo != null) {
+        final userJson = json.decode(userInfo);
+        final currentName = userJson['sName'];
+        if (currentName != null) {
+          body['sName'] = currentName;
+        }
+      }
+    }
+    
+    if (countryCode != null && countryCode.isNotEmpty) {
+      // Asegurar que el código de país tenga el formato correcto
+      body['sLada'] = countryCode.startsWith('+') ? countryCode : '+$countryCode';
+    }
+    if (phoneNumber != null && phoneNumber.isNotEmpty) {
+      body['sPhoneNumber'] = phoneNumber;
+    }
+
     final token = prefs.getString(TokenManager.TOKEN_KEY);
     final response = await ApiHelper.handleRequest(
       http.post(
         url,
-        body: json.encode({'sName': newName}),
+        body: json.encode(body),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token'
         },
       ),
     );
+    
+    return response;
+  }
+
+  /// Actualiza el número de teléfono del usuario.
+  /// Intenta con diferentes formatos de campo para compatibilidad con el backend.
+  static Future<Map<String, dynamic>> updatePhoneNumber(
+      String countryCode, String phoneNumber, {String? userName}) async {
+    final url = Uri.parse('$baseUrl/session/user/updateinfo');
+    final prefs = await SharedPreferences.getInstance();
+
+    // Verifica si el token es válido antes de continuar.
+    bool validToken = await ApiHelper.validateToken();
+    if (!validToken) {
+      return {'success': false, 'type': 'SESSION_EXPIRED'};
+    }
+
+    // Usar el nombre proporcionado o intentar obtenerlo de SharedPreferences
+    String? currentName = userName;
+    if (currentName == null || currentName.isEmpty) {
+      final userInfo = prefs.getString('user_info');
+      if (userInfo != null) {
+        final userJson = json.decode(userInfo);
+        currentName = userJson['sName'];
+      }
+    }
+    
+    // Si aún no tenemos nombre, retornar error
+    if (currentName == null || currentName.isEmpty) {
+      return {
+        'success': false, 
+        'message': 'No se pudo obtener el nombre del usuario. Por favor, actualice su nombre primero.'
+      };
+    }
+
+    // Formatear el código de país
+    final formattedCountryCode = countryCode.startsWith('+') ? countryCode : '+$countryCode';
+
+    // Intentar con el formato que usa el registro, SIEMPRE incluyendo el nombre
+    Map<String, dynamic> body = {
+      'sLada': formattedCountryCode,
+      'sPhoneNumber': phoneNumber,
+      'sName': currentName, // currentName nunca es null aquí
+    };
+
+
+    final token = prefs.getString(TokenManager.TOKEN_KEY);
+    var response = await ApiHelper.handleRequest(
+      http.post(
+        url,
+        body: json.encode(body),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
+      ),
+    );
+
+    
+    // Verificar el statusCode para determinar el éxito
+    final statusCode = response['statusCode'];
+    final isSuccess = statusCode == 200 || statusCode == 201 || response['success'] == true;
+    
+    // Si la respuesta fue exitosa con sLada, retornar inmediatamente
+    if (isSuccess) {
+      // Asegurar que success sea true en la respuesta
+      response['success'] = true;
+      return response;
+    }
+
+    // Si no funciona con sLada, intentar con sCountryCode
+    if (response['success'] != true) {
+      body = {
+        'sCountryCode': formattedCountryCode,
+        'sPhoneNumber': phoneNumber,
+        'sName': currentName, // currentName nunca es null aquí
+      };
+
+
+      response = await ApiHelper.handleRequest(
+        http.post(
+          url,
+          body: json.encode(body),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token'
+          },
+        ),
+      );
+
+    }
+
     return response;
   }
 

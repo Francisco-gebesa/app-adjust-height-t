@@ -29,11 +29,23 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   void initState() {
     super.initState();
     _loadDataUser();
+    
+    // Escuchar cambios en el AuthController
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthController>().addListener(_onAuthDataChanged);
+    });
+  }
+  
+  void _onAuthDataChanged() {
+    if (mounted) {
+      _loadDataUser();
+    }
   }
 
   @override
   void dispose() {
     _sequenceTimer?.cancel();
+    context.read<AuthController>().removeListener(_onAuthDataChanged);
     super.dispose();
   }
 
@@ -44,7 +56,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     
     // Cargar datos del teléfono si existen
     if (authController.userInfo!.countryCode != null) {
-      _countryCodeController.text = authController.userInfo!.countryCode!;
+      // Quitar el '+' si existe para mostrar solo el número
+      String countryCode = authController.userInfo!.countryCode!;
+      if (countryCode.startsWith('+')) {
+        countryCode = countryCode.substring(1);
+      }
+      _countryCodeController.text = countryCode;
     }
     if (authController.userInfo!.phoneNumber != null) {
       _phoneController.text = authController.userInfo!.phoneNumber!;
@@ -88,10 +105,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   // Actualizar teléfono si se proporcionó
                   if (_countryCodeController.text.isNotEmpty && 
                       _phoneController.text.isNotEmpty) {
-                    await authController.updatePhoneNumber(
-                        _countryCodeController.text, 
-                        _phoneController.text, 
-                        context);
+                    if (context.mounted) {
+                      await authController.updatePhoneNumber(
+                          _countryCodeController.text, 
+                          _phoneController.text, 
+                          context);
+                    }
                   }
                 },
                 builder: (context, child, callback, _) {
