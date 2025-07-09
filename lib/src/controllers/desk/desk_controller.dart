@@ -178,6 +178,10 @@ class DeskController extends ChangeNotifier {
             }
             Future.delayed(const Duration(milliseconds: 200), () {
               requestHeightRange();
+              // Solicitar el estado actual del escritorio para obtener la altura
+              requestCurrentStatus();
+              // Activar la pantalla del escritorio
+              _activateDisplay();
               deviceReady = true;
               notifyListeners();
             });
@@ -303,6 +307,11 @@ class DeskController extends ChangeNotifier {
           } else {
             print("Error al actualizar el UUID: ${response["message"]}");
           }
+          
+          // Solicitar estado actual después de la conexión inicial
+          Future.delayed(const Duration(milliseconds: 500), () {
+            requestCurrentStatus();
+          });
         }
 
         print("Altura actual: $heightIN pulgadas");
@@ -340,6 +349,7 @@ class DeskController extends ChangeNotifier {
     });
   }
 
+
   Future<void> createMovementReport(BuildContext context) async {
     if (await InternetConnection().hasInternetAccess) {
       var routineController =
@@ -374,10 +384,33 @@ class DeskController extends ChangeNotifier {
         ?.write([0xF1, 0xF1, 0x07, 0x00, 0x07, 0x7E], withoutResponse: true);
   }
 
+  void _activateDisplay() {
+    // Enviar comando de movimiento mínimo para activar la pantalla
+    // Primero un pequeño movimiento hacia arriba
+    targetCharacteristic?.write([0xF1, 0xF1, 0x01, 0x00, 0x01, 0x7E], withoutResponse: true);
+    
+    // Después de 100ms, detener el movimiento
+    Future.delayed(const Duration(milliseconds: 100), () {
+      
+      targetCharacteristic?.write([0xF1, 0xF1, 0x2B, 0x00, 0x2B, 0x7E], withoutResponse: true);
+      print("🖥️ Pantalla del escritorio activada");
+    });
+  }
+
   void requestHeightRange() {
     // Comando para solicitar el rango de altura
     List<int> command = [0xF1, 0xF1, 0x0C, 0x00, 0x0C, 0x7E];
     targetCharacteristic!.write(command, withoutResponse: true);
+  }
+
+  void requestCurrentStatus() {
+    // Comando para solicitar el estado actual (esto fuerza al escritorio a enviar la altura actual)
+    // Usamos el mismo comando que se usa para detener el movimiento, que también reporta el estado
+    List<int> command = [0xF1, 0xF1, 0x07, 0x00, 0x07, 0x7E];
+    if (targetCharacteristic != null) {
+      targetCharacteristic!.write(command, withoutResponse: true);
+      print("📊 Solicitando estado actual del escritorio");
+    }
   }
 
   void moveUp() {

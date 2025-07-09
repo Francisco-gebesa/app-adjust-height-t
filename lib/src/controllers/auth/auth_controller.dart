@@ -9,6 +9,7 @@ import 'package:controller/routes/app_routes.dart';
 import 'package:controller/src/api/auth_api.dart';
 import 'package:controller/src/api/error_handler.dart';
 import 'package:controller/src/api/token_manager.dart';
+import 'package:controller/src/api/user_api.dart';
 import 'package:controller/src/data/models/user.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -147,8 +148,16 @@ class AuthController with ChangeNotifier {
     final id = prefs.getInt('id');
     final weight = prefs.getDouble('weight');
     final height = prefs.getDouble('height');
+    final phoneNumber = prefs.getString('phoneNumber');
+    final countryCode = prefs.getString('countryCode');
     _userInfo = UserModel(
-        name: name, email: email, id: id, weight: weight, height: height);
+        name: name,
+        email: email,
+        id: id,
+        weight: weight,
+        height: height,
+        phoneNumber: phoneNumber,
+        countryCode: countryCode);
     notifyListeners();
   }
 
@@ -522,16 +531,18 @@ class AuthController with ChangeNotifier {
     try {
       _setLoading(true);
       await _auth.currentUser!.updateDisplayName(newName);
-      final response = await AuthApi.updateUserName(newName);
+      final response = await AuthApi.updateUserInfo(name: newName);
 
       if (response['success']) {
         await updateName(newName);
       } else {
-        ToastService.showError(
-            context,
-            response['type'] != null
-                ? ErrorHandler.getErrorMessage(response['type'], context)
-                : json.decode(response['error'])['message']);
+        if (context.mounted) {
+          ToastService.showError(
+              context,
+              response['type'] != null
+                  ? ErrorHandler.getErrorMessage(response['type'], context)
+                  : json.decode(response['error'])['message']);
+        }
       }
     } finally {
       _setLoading(false);
@@ -547,11 +558,15 @@ class AuthController with ChangeNotifier {
     try {
       _setLoading(true);
       await _auth.sendPasswordResetEmail(email: email);
-      ToastService.showSuccess(
-          context, AppLocalizations.of(context)!.resetPasswordEmailSent);
+      if (context.mounted) {
+        ToastService.showSuccess(
+            context, AppLocalizations.of(context)!.resetPasswordEmailSent);
+      }
     } on FirebaseAuthException catch (e) {
-      ToastService.showError(
-          context, _firebaseAuthErrorMessage(e.code, context));
+      if (context.mounted) {
+        ToastService.showError(
+            context, _firebaseAuthErrorMessage(e.code, context));
+      }
     } finally {
       _setLoading(false);
     }
@@ -566,17 +581,39 @@ class AuthController with ChangeNotifier {
       String countryCode, String phoneNumber, BuildContext context) async {
     try {
       _setLoading(true);
-      // TODO: Implementar la actualización del número de teléfono en el backend
-      // Por ahora solo mostraremos un mensaje de éxito simulado
-      await Future.delayed(const Duration(seconds: 1));
-      
-      ToastService.showSuccess(
-          context, AppLocalizations.of(context)!.phoneNumberUpdated);
+      final currentUserName = _userInfo?.name ?? "";
+      final response = await AuthApi.updatePhoneNumber(
+        countryCode,
+        phoneNumber,
+        userName: currentUserName,
+      );
+      final isSuccess =
+          response['success'] == true || response['success'] == 'true';
+      if (isSuccess) {
+        _userInfo!.countryCode = countryCode;
+        _userInfo!.phoneNumber = phoneNumber;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('countryCode', countryCode);
+        await prefs.setString('phoneNumber', phoneNumber);
+
+        ToastService.showSuccess(
+            context, AppLocalizations.of(context)!.phoneNumberUpdated);
+      } else {
+        if (context.mounted) {
+          ToastService.showError(
+              context,
+              response['message'] ??
+                  AppLocalizations.of(context)!.errorUpdatingPhone);
+        }
+      }
     } catch (e) {
-      ToastService.showError(
-          context, AppLocalizations.of(context)!.errorUpdatingPhone);
+      if (context.mounted) {
+        ToastService.showError(
+            context, AppLocalizations.of(context)!.errorUpdatingPhone);
+      }
     } finally {
       _setLoading(false);
+      notifyListeners();
     }
   }
 
@@ -593,11 +630,13 @@ class AuthController with ChangeNotifier {
       if (response['success']) {
         return true;
       } else {
-        ToastService.showError(
-            context,
-            response['type'] != null
-                ? ErrorHandler.getErrorMessage(response['type'], context)
-                : json.decode(response['error'])['message']);
+        if (context.mounted) {
+          ToastService.showError(
+              context,
+              response['type'] != null
+                  ? ErrorHandler.getErrorMessage(response['type'], context)
+                  : json.decode(response['error'])['message']);
+        }
         return false;
       }
     } finally {
