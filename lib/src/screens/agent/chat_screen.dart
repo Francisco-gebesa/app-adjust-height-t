@@ -24,23 +24,33 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<types.Message> _messages = [];
   final String _sessionId = const Uuid().v4();
   final _user = const types.User(id: 'user');
-  final _bot = const types.User(id: 'bot', firstName: 'Clara');
+  final _bot = const types.User(id: 'bot', firstName: 'Ascend');
   final String _backendUrl = 'https://gebesa.app.n8n.cloud/webhook/c685cbe2-ea13-40f8-8dbc-0be198b';
   bool _isBotTyping = false;
   String _formattedDate = '';
+  String _language = ''; // Idioma por defecto
+  String _testInit = '';
 
   @override
   void initState() {
     super.initState();
+    _initializeChat();
+  }
+
+  Future<void> _initializeChat() async {
+     _language = await _getLanguage();
+    if (_language == 'es') {
+      _testInit = '¡Hola! Soy Ascend. ¿En qué puedo ayudarte hoy?';
+    } else {
+      _testInit = 'Hello! I am Ascend. How can I assist you today?';
+    }
     _setFormattedDate();
     _addMessage(
       types.TextMessage(
         author: _bot,
         createdAt: DateTime.now().millisecondsSinceEpoch,
         id: const Uuid().v4(),
-        text: '¡Hola! Soy Clara. ¿En qué puedo ayudarte hoy?',
-
-        //CAMBIAR ESTO
+        text: _testInit,
       ),
     );
   }
@@ -49,7 +59,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _setFormattedDate() {
     final now = DateTime.now();
-    _formattedDate = DateFormat("d 'de' MMMM 'de' yyyy", 'es_ES').format(now);
+    if (_language == 'es') {
+      _formattedDate = DateFormat("d 'de' MMMM 'de' yyyy", 'es_ES').format(now);
+    } else {
+      _formattedDate = DateFormat("MMMM d, yyyy", 'en_US').format(now);
+    }
   }
 
   void _addMessage(types.Message message) {
@@ -73,7 +87,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   _handleImageSelection();
                 },
                 icon: const Icon(Icons.photo_library),
-                label: const Text('Elegir imágenes'),
+                label: Text(_language == 'es' ? 'Elegir imágenes' : 'Choose images'),
               ),
               TextButton.icon(
                 onPressed: () {
@@ -81,7 +95,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   _handleFileSelection();
                 },
                 icon: const Icon(Icons.folder_open),
-                label: const Text('Elegir documento'),
+                label: Text(_language == 'es' ? 'Elegir documento' : 'Choose document'),
               ),
             ],
           ),
@@ -248,7 +262,9 @@ class _ChatScreenState extends State<ChatScreen> {
               author: _bot,
               createdAt: DateTime.now().millisecondsSinceEpoch,
               id: const Uuid().v4(),
-              text: 'Lo siento, hubo un error. Código: ${response.statusCode}',
+              text: _language == 'es' 
+                ? 'Lo siento, algo salió mal. Por favor intenta de nuevo.'
+                : 'Sorry, something went wrong. Please try again.',
             ),
           );
         }
@@ -260,7 +276,9 @@ class _ChatScreenState extends State<ChatScreen> {
             author: _bot,
             createdAt: DateTime.now().millisecondsSinceEpoch,
             id: const Uuid().v4(),
-            text: 'Error de red. Asegúrate de que el backend esté corriendo.',
+            text: _language == 'es'
+              ? 'No hay conexión a internet. Por favor verifica tu conexión.'
+              : 'No internet connection. Please check your connection.',
           ),
         );
       }
@@ -316,6 +334,7 @@ class _ChatScreenState extends State<ChatScreen> {
           typingIndicatorOptions: TypingIndicatorOptions(
             typingUsers: _isBotTyping ? [_bot] : [],
           ),
+          
           theme: DefaultChatTheme(
             backgroundColor: theme.scaffoldBackgroundColor,
             primaryColor: theme.primaryColor,
@@ -346,7 +365,7 @@ class _ChatScreenState extends State<ChatScreen> {
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
               // Volvemos a poner el texto de placeholder porque lo hemos sobreescrito
-              hintText: 'Message', 
+              hintText: _language == 'es' ? 'Mensaje' : 'Message', 
               hintStyle: TextStyle(
                   color: Colors.grey.withOpacity(0.8),
                   fontFamily: 'Airbnb',
@@ -374,12 +393,24 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             userAvatarTextStyle: const TextStyle(
                 fontFamily: 'Airbnb', color: Colors.white, fontSize: 12),
+        
+            typingIndicatorTheme: TypingIndicatorTheme(
+              // 3 puntos
+              animatedCirclesColor: isDarkMode ? Colors.white : Colors.black,
+              animatedCircleSize: 6,                       // tamaño del punto
+              // globo
+              bubbleBorder: BorderRadius.circular(16),     // conserva el radio
+              bubbleColor: Colors
+                  .transparent,                            // <- ¡sin fondo!
+              // contador de “+ N” (multi‑usuarios)
+              countAvatarColor: theme.primaryColor,
+              countTextColor: Colors.white,
+              // estilo del texto “is typing…”
+              multipleUserTextStyle: theme.textTheme.bodySmall!,
+            ),  
           ),
         ),
       ),
     );
   }
 }
-
-
-
