@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:controller/src/api/token_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
@@ -8,6 +9,8 @@ import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -22,7 +25,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final String _sessionId = const Uuid().v4();
   final _user = const types.User(id: 'user');
   final _bot = const types.User(id: 'bot', firstName: 'Clara');
-  final String _backendUrl = 'http://192.168.20.52:8000/api/v1/chat';
+  final String _backendUrl = 'https://gebesa.app.n8n.cloud/webhook/c685cbe2-ea13-40f8-8dbc-0be198b';
   bool _isBotTyping = false;
   String _formattedDate = '';
 
@@ -36,6 +39,8 @@ class _ChatScreenState extends State<ChatScreen> {
         createdAt: DateTime.now().millisecondsSinceEpoch,
         id: const Uuid().v4(),
         text: '¡Hola! Soy Clara. ¿En qué puedo ayudarte hoy?',
+
+        //CAMBIAR ESTO
       ),
     );
   }
@@ -83,6 +88,32 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+  }
+
+  Future<String?> _getJwtToken() async =>
+    (await SharedPreferences.getInstance()).getString(TokenManager.TOKEN_KEY); // Asegúrate de que la KEY sea la correcta
+
+  Future<String?> _loadUUID() async =>
+      (await SharedPreferences.getInstance()).getString('sUUID') ?? 'noexiste';
+
+  Future<int?> _getUserId() async =>
+      (await SharedPreferences.getInstance()).getInt('id');
+
+  Future<String> _getTimezone() async =>
+      await FlutterTimezone.getLocalTimezone();
+  
+  Future<String> _getLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final languageId = prefs.getInt('language') ?? 1;
+    // Mapear el ID del idioma al código del idioma
+    switch (languageId) {
+      case 1:
+        return 'es';
+      case 2:
+        return 'en';
+      default:
+        return 'es';
+    }
   }
 
   Future<void> _handleImageSelection() async {
@@ -162,25 +193,42 @@ class _ChatScreenState extends State<ChatScreen> {
     await _sendRequest(prompt: message.text);
   }
 
-  Future<void> _sendRequest({
-    required String prompt,
-    String? imageBase64,
-    String? mimeType,
-    String? fileBase64,
-    String? fileMimeType,
+ Future<void> _sendRequest({
+  required String prompt,
+  String? imageBase64,
+  String? mimeType,
+  String? fileBase64,
+  String? fileMimeType,
   }) async {
     try {
+      // 1. Recuperamos todos los datos de sesión ANTES de enviar la petición
+      final jwt = await _getJwtToken();
+      final uuid = await _loadUUID();
+      final userId = await _getUserId();
+      final tz = await _getTimezone();
+      final language = await _getLanguage();
+
+      // Creamos el cuerpo de la petición
+      final requestBody = {
+        'session_id': _sessionId,
+        'prompt': prompt,
+        'image_base64': imageBase64,
+        'image_mime_type': mimeType,
+        'file_base64': fileBase64,
+        'file_mime_type': fileMimeType,
+        // 2. Añadimos los nuevos datos al mapa
+        'jwt_token': jwt,
+        'uuid': uuid,
+        'user_id': userId,
+        'timezone': tz,
+        'language': language,
+      };
+
       final response = await http.post(
         Uri.parse(_backendUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'session_id': _sessionId,
-          'prompt': prompt,
-          'image_base64': imageBase64,
-          'image_mime_type': mimeType,
-          'file_base64': fileBase64,
-          'file_mime_type': fileMimeType,
-        }),
+        // 3. Enviamos el cuerpo completo en formato JSON
+        body: jsonEncode(requestBody),
       );
 
       if (mounted) {
@@ -191,7 +239,7 @@ class _ChatScreenState extends State<ChatScreen> {
               author: _bot,
               createdAt: DateTime.now().millisecondsSinceEpoch,
               id: const Uuid().v4(),
-              text: responseBody['reply'],
+              text: responseBody['output'],
             ),
           );
         } else {
