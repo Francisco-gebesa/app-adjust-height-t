@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:uuid/uuid.dart';
-import 'package:image_picker/image_picker.dart';
+// import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -81,14 +81,14 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _handleImageSelection();
-                },
-                icon: const Icon(Icons.photo_library),
-                label: Text(_language == 'es' ? 'Elegir imágenes' : 'Choose images'),
-              ),
+              // TextButton.icon(
+              //   onPressed: () {
+              //     Navigator.pop(context);
+              //     _handleImageSelection();
+              //   },
+              //   icon: const Icon(Icons.photo_library),
+              //   label: Text(_language == 'es' ? 'Elegir imágenes' : 'Choose images'),
+              // ),
               TextButton.icon(
                 onPressed: () {
                   Navigator.pop(context);
@@ -130,30 +130,30 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _handleImageSelection() async {
-    final result = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (result == null) return;
+  // Future<void> _handleImageSelection() async {
+  //   final result = await ImagePicker().pickImage(source: ImageSource.gallery);
+  //   if (result == null) return;
 
-    if (mounted) setState(() => _isBotTyping = true);
+  //   if (mounted) setState(() => _isBotTyping = true);
 
-    final bytes = await result.readAsBytes();
-    _addMessage(
-      types.ImageMessage(
-        author: _user,
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-        id: const Uuid().v4(),
-        name: result.name,
-        size: bytes.length,
-        uri: result.path,
-      ),
-    );
+  //   final bytes = await result.readAsBytes();
+  //   _addMessage(
+  //     types.ImageMessage(
+  //       author: _user,
+  //       createdAt: DateTime.now().millisecondsSinceEpoch,
+  //       id: const Uuid().v4(),
+  //       name: result.name,
+  //       size: bytes.length,
+  //       uri: result.path,
+  //     ),
+  //   );
 
-    await _sendRequest(
-      prompt: 'Analiza esta imagen, por favor.',
-      imageBase64: base64Encode(bytes),
-      mimeType: result.mimeType ?? 'image/jpeg',
-    );
-  }
+  //   await _sendRequest(
+  //     prompt: 'Analiza esta imagen, por favor.',
+  //     imageBase64: base64Encode(bytes),
+  //     mimeType: result.mimeType ?? 'image/jpeg',
+  //   );
+  // }
 
   Future<void> _handleFileSelection() async {
     final result = await FilePicker.platform.pickFiles(
@@ -209,8 +209,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
  Future<void> _sendRequest({
   required String prompt,
-  String? imageBase64,
-  String? mimeType,
+  // String? imageBase64,
+  // String? mimeType,
   String? fileBase64,
   String? fileMimeType,
   }) async {
@@ -226,8 +226,8 @@ class _ChatScreenState extends State<ChatScreen> {
       final requestBody = {
         'session_id': _sessionId,
         'prompt': prompt,
-        'image_base64': imageBase64,
-        'image_mime_type': mimeType,
+        // 'image_base64': imageBase64,
+        // 'image_mime_type': mimeType,
         'file_base64': fileBase64,
         'file_mime_type': fileMimeType,
         // 2. Añadimos los nuevos datos al mapa
@@ -294,6 +294,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final isDarkMode = theme.brightness == Brightness.dark;
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         scrolledUnderElevation: 1.0,
