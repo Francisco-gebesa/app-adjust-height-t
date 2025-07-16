@@ -69,6 +69,11 @@ dependencies:
   socket_io_client: ^3.1.2
   flutter_timezone: ^4.1.1
   file_picker: ^6.1.1
+  flutter_chat_ui: ^1.6.12
+  flutter_chat_types: ^3.6.2
+  uuid: ^4.4.0
+  google_fonts: ^6.2.1
+  image_picker: ^1.1.2
   
 
 dev_dependencies:

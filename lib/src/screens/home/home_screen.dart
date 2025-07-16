@@ -13,6 +13,7 @@ import '../../../routes/auth_routes.dart';
 import '../../controllers/agent/agent_controller.dart';
 import '../statics/statics_screen.dart';
 import '../agent/agent_screen.dart';
+import '../agent/chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -89,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SettingsScreen(),
                 // Solo muestra la pantalla del agente si está disponible
                 if (context.watch<AgentController>().isAgentAvailable)
-                  const AgentScreen()
+                  const ChatScreen()
                 else
                   const SizedBox(), // Pantalla vacía como placeholder cuando el agente no está disponible
               ],
