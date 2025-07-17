@@ -30,9 +30,6 @@ import 'src/controllers/settings/measurement_controller.dart';
 import 'src/controllers/settings/theme_controller.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:controller/src/controllers/desk/socket_io_controller.dart';
-
-//
-
 import 'package:permission_handler/permission_handler.dart';
 
 /// Inicializa la aplicación y sus dependencias
@@ -43,13 +40,17 @@ import 'package:permission_handler/permission_handler.dart';
 /// 3. Splash screen nativo
 /// 4. Providers para estado global
 Future<void> main() async {
-  // Inicialización de permisos
-  WidgetsFlutterBinding.ensureInitialized();
-  await Permission.camera.request();
-  await Permission.microphone.request();
   // Inicialización del binding de Flutter
   var binding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: binding);
+
+  // =========================================================================
+  // === CAMBIO 1: El código de permisos ya estaba aquí, lo cual es perfecto. ===
+  // === No se necesita añadir nada más aquí para los permisos.             ===
+  // =========================================================================
+  WidgetsFlutterBinding.ensureInitialized();
+  await Permission.camera.request();
+  await Permission.microphone.request();
 
   // Configuración de Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -64,19 +65,14 @@ Future<void> main() async {
   // Iniciar app con providers
   runApp(MultiProvider(
     providers: [
-      // Providers para configuración
+      // ... (Tus providers se mantienen exactamente igual)
       ChangeNotifierProvider(create: (_) => ThemeController()),
       ChangeNotifierProvider(create: (_) => LanguageController()),
-
-      // ─────────── Control de escritorio ───────────
       ChangeNotifierProvider(create: (_) => BluetoothController()),
       ChangeNotifierProvider(create: (_) => DeskController()),
-      // DeskSocketService que usa esa misma instancia
       ChangeNotifierProvider(
         create: (context) => DeskSocketService(context.read<DeskController>()),
       ),
-
-      // Providers para funcionalidad principal
       ChangeNotifierProvider(create: (_) => MeasurementController()),
       ChangeNotifierProvider(create: (_) => UserController()),
       ChangeNotifierProvider(create: (_) => AuthController()),
@@ -96,13 +92,45 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     var themeController = Provider.of<ThemeController>(context);
     var languageController = Provider.of<LanguageController>(context);
+
+    // =========================================================================
+    // === CAMBIO 2: Lógica para actualizar las barras del sistema dinámicamente ===
+    // =========================================================================
+    // Este código se ejecuta cada vez que el tema cambia, asegurando que
+    // las barras del sistema siempre coincidan con el tema actual.
+
+    // Determina si el modo oscuro está activo, respetando la configuración del sistema
+    final isDarkMode = themeController.themeMode == ThemeMode.dark ||
+        (themeController.themeMode == ThemeMode.system &&
+            MediaQuery.of(context).platformBrightness == Brightness.dark);
+
+    // Define el estilo de las barras basado en el tema
+    final systemUiStyle = isDarkMode
+        ? SystemUiOverlayStyle(
+      // Para tema oscuro:
+      statusBarColor: AppTheme.darkTheme.scaffoldBackgroundColor,
+      statusBarIconBrightness: Brightness.light, // Iconos claros
+      systemNavigationBarColor: AppTheme.darkTheme.scaffoldBackgroundColor,
+      systemNavigationBarIconBrightness: Brightness.light, // Iconos claros
+    )
+        : SystemUiOverlayStyle(
+      // Para tema claro:
+      statusBarColor: AppTheme.lightTheme.scaffoldBackgroundColor,
+      statusBarIconBrightness: Brightness.dark, // Iconos oscuros
+      systemNavigationBarColor: AppTheme.lightTheme.scaffoldBackgroundColor,
+      systemNavigationBarIconBrightness: Brightness.dark, // Iconos oscuros
+    );
+
+    // Aplica el estilo
+    SystemChrome.setSystemUIOverlayStyle(systemUiStyle);
+
     return ToastificationWrapper(
       child: MaterialApp(
         builder: (BuildContext context, Widget? child) {
           return MediaQuery(
             data: MediaQuery.of(context).copyWith(
               textScaler: const TextScaler.linear(0.95),
-            ), //set desired text scale factor here
+            ),
             child: child!,
           );
         },
@@ -111,8 +139,8 @@ class MyApp extends StatelessWidget {
         locale: languageController.currentLocale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        theme: AppTheme.lightTheme, // Tema claro
-        darkTheme: AppTheme.darkTheme, // Tema oscuro
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
         themeMode: themeController.themeMode,
         initialRoute: AuthRoutes.checkAuth,
         routes: AppRoutes.getRoutes(),
