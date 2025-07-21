@@ -35,98 +35,113 @@ import 'package:permission_handler/permission_handler.dart';
 /// Inicializa la aplicación y sus dependencias
 ///
 /// Configura:
-/// 1. Firebase
-/// 2. Orientación de pantalla
-/// 3. Splash screen nativo
-/// 4. Providers para estado global
+/// 1. Binding de Widgets y Splash Screen
+/// 2. Permisos de la aplicación
+/// 3. Firebase
+/// 4. Orientación de pantalla
+/// 5. Providers para estado global
 Future<void> main() async {
-  // Inicialización del binding de Flutter
-  var binding = WidgetsFlutterBinding.ensureInitialized();
-  FlutterNativeSplash.preserve(widgetsBinding: binding);
+  // 1. Asegurar que Flutter esté inicializado y mantener el splash screen
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // =========================================================================
-  // === CAMBIO 1: El código de permisos ya estaba aquí, lo cual es perfecto. ===
-  // === No se necesita añadir nada más aquí para los permisos.             ===
-  // =========================================================================
-  WidgetsFlutterBinding.ensureInitialized();
-  await Permission.camera.request();
-  await Permission.microphone.request();
+  // 2. Solicitar permisos críticos al inicio
+  await _requestInitialPermissions();
 
-  // Configuración de Firebase
+  // 3. Inicializar Firebase para la autenticación y otros servicios
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Forzar orientación vertical
+  // 4. Forzar la orientación vertical para una experiencia consistente
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-  // Delay para mostrar splash
+  // 5. Pequeña pausa para asegurar que el splash se muestre correctamente
   await Future.delayed(const Duration(seconds: 2));
   FlutterNativeSplash.remove();
 
-  // Iniciar app con providers
-  runApp(MultiProvider(
-    providers: [
-      // ... (Tus providers se mantienen exactamente igual)
-      ChangeNotifierProvider(create: (_) => ThemeController()),
-      ChangeNotifierProvider(create: (_) => LanguageController()),
-      ChangeNotifierProvider(create: (_) => BluetoothController()),
-      ChangeNotifierProvider(create: (_) => DeskController()),
-      ChangeNotifierProvider(
-        create: (context) => DeskSocketService(context.read<DeskController>()),
-      ),
-      ChangeNotifierProvider(create: (_) => MeasurementController()),
-      ChangeNotifierProvider(create: (_) => UserController()),
-      ChangeNotifierProvider(create: (_) => AuthController()),
-      ChangeNotifierProvider(create: (_) => ConnectivityController()),
-      ChangeNotifierProvider(create: (_) => RoutineController()),
-      ChangeNotifierProvider(create: (_) => StatisticsController()),
-      ChangeNotifierProvider(create: (_) => AgentController()),
-    ],
-    child: const MyApp(),
-  ));
+  // 6. Iniciar la aplicación con todos los proveedores de estado
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeController()),
+        ChangeNotifierProvider(create: (_) => LanguageController()),
+        ChangeNotifierProvider(create: (_) => BluetoothController()),
+        ChangeNotifierProvider(create: (_) => DeskController()),
+        ChangeNotifierProvider(
+          create: (context) => DeskSocketService(context.read<DeskController>()),
+        ),
+        ChangeNotifierProvider(create: (_) => MeasurementController()),
+        ChangeNotifierProvider(create: (_) => UserController()),
+        ChangeNotifierProvider(create: (_) => AuthController()),
+        ChangeNotifierProvider(create: (_) => ConnectivityController()),
+        ChangeNotifierProvider(create: (_) => RoutineController()),
+        ChangeNotifierProvider(create: (_) => StatisticsController()),
+        ChangeNotifierProvider(create: (_) => AgentController()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
+
+/// Función auxiliar para agrupar la solicitud de permisos.
+Future<void> _requestInitialPermissions() async {
+  // Estos permisos son solicitados al inicio para asegurar que las
+  // funcionalidades del agente estén listas cuando se necesiten.
+  await [
+    Permission.camera,
+    Permission.microphone,
+  ].request();
+}
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    var themeController = Provider.of<ThemeController>(context);
-    var languageController = Provider.of<LanguageController>(context);
-
-    // =========================================================================
-    // === CAMBIO 2: Lógica para actualizar las barras del sistema dinámicamente ===
-    // =========================================================================
-    // Este código se ejecuta cada vez que el tema cambia, asegurando que
-    // las barras del sistema siempre coincidan con el tema actual.
-
-    // Determina si el modo oscuro está activo, respetando la configuración del sistema
+  /// Actualiza el estilo de las barras de estado y navegación del sistema
+  /// para que coincida con el tema actual de la aplicación (claro/oscuro).
+  void _updateSystemUi(BuildContext context, ThemeController themeController) {
     final isDarkMode = themeController.themeMode == ThemeMode.dark ||
         (themeController.themeMode == ThemeMode.system &&
             MediaQuery.of(context).platformBrightness == Brightness.dark);
 
-    // Define el estilo de las barras basado en el tema
-    final systemUiStyle = isDarkMode
-        ? SystemUiOverlayStyle(
-      // Para tema oscuro:
-      statusBarColor: AppTheme.darkTheme.scaffoldBackgroundColor,
-      statusBarIconBrightness: Brightness.light, // Iconos claros
+    final style = isDarkMode
+        ? SystemUiOverlayStyle.light.copyWith(
+      statusBarColor: Colors.transparent,
       systemNavigationBarColor: AppTheme.darkTheme.scaffoldBackgroundColor,
-      systemNavigationBarIconBrightness: Brightness.light, // Iconos claros
     )
-        : SystemUiOverlayStyle(
-      // Para tema claro:
-      statusBarColor: AppTheme.lightTheme.scaffoldBackgroundColor,
-      statusBarIconBrightness: Brightness.dark, // Iconos oscuros
+        : SystemUiOverlayStyle.dark.copyWith(
+      statusBarColor: Colors.transparent,
       systemNavigationBarColor: AppTheme.lightTheme.scaffoldBackgroundColor,
-      systemNavigationBarIconBrightness: Brightness.dark, // Iconos oscuros
     );
 
-    // Aplica el estilo
-    SystemChrome.setSystemUIOverlayStyle(systemUiStyle);
+    SystemChrome.setSystemUIOverlayStyle(style);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Escuchamos los cambios en los controladores de tema e idioma
+    final themeController = Provider.of<ThemeController>(context);
+    final languageController = Provider.of<LanguageController>(context);
+
+    // Aplicamos el estilo de la UI del sistema cada vez que el widget se reconstruye
+    _updateSystemUi(context, themeController);
 
     return ToastificationWrapper(
       child: MaterialApp(
-        builder: (BuildContext context, Widget? child) {
+        title: 'Gebesa Desk Controller',
+        debugShowCheckedModeBanner: false,
+        // Configuración de localización
+        locale: languageController.currentLocale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        // Configuración de temas
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: themeController.themeMode,
+        // Configuración de rutas
+        initialRoute: AuthRoutes.checkAuth,
+        routes: AppRoutes.getRoutes(),
+        // Builder para aplicar un escalado de texto global
+        builder: (context, child) {
           return MediaQuery(
             data: MediaQuery.of(context).copyWith(
               textScaler: const TextScaler.linear(0.95),
@@ -134,16 +149,6 @@ class MyApp extends StatelessWidget {
             child: child!,
           );
         },
-        title: 'Gebesa Desk Controller',
-        debugShowCheckedModeBanner: false,
-        locale: languageController.currentLocale,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: themeController.themeMode,
-        initialRoute: AuthRoutes.checkAuth,
-        routes: AppRoutes.getRoutes(),
       ),
     );
   }

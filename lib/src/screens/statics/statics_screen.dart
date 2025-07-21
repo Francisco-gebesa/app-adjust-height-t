@@ -1,13 +1,14 @@
 import 'package:controller/src/widgets/buttons/buttons.dart';
 import 'package:flutter/material.dart';
+// Mantenemos FontAwesome solo porque estaba en tu archivo original.
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:controller/src/controllers/network/connectivity_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../controllers/statistics/statistics_controller.dart';
 import '../goals/goal_screen.dart';
 
+// --- PANTALLA PRINCIPAL REDISEÑADA ---
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
 
@@ -20,190 +21,55 @@ class _StatisticsScreenState extends State<StatisticsScreen>
   @override
   void initState() {
     super.initState();
-    Provider.of<StatisticsController>(context, listen: false)
-        .getStatistics(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<StatisticsController>(context, listen: false)
+          .getStatistics(context);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
     var provider = Provider.of<StatisticsController>(context);
+    final localizations = AppLocalizations.of(context)!;
+
     return DefaultTabController(
       length: 4,
-      child: Consumer<ConnectivityController>(
-          builder: (context, connectivityController, child) {
-        return Scaffold(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text(localizations.statistics),
+          centerTitle: true,
           backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: Text(AppLocalizations.of(context)!.statistics),
-            centerTitle: true,
-            backgroundColor: Colors.transparent,
-            bottom: TabBar(
-              onTap: (val) {
-                provider.setDateFilter(
-                  val == 0
-                      ? 'Today'
-                      : val == 1
-                          ? 'Week'
-                          : val == 2
-                              ? 'Month'
-                              : 'Year',
-                );
-                provider.getStatistics(context);
-              },
-              indicatorColor: Colors.white,
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.grey.withOpacity(0.5),
-              labelColor: Theme.of(context).primaryColor,
-              indicator: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).primaryColor,
-                    width: 3,
-                  ),
-                ),
-              ),
-              unselectedLabelColor: Colors.grey,
-              labelStyle: const TextStyle(
-                fontFamily: 'Airbnb',
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontFamily: 'Airbnb',
-                fontSize: 16,
-                fontWeight: FontWeight.normal,
-              ),
-              physics: const NeverScrollableScrollPhysics(),
-              tabs: const [
-                Tab(text: 'Today'),
-                Tab(text: 'Week'),
-                Tab(text: 'Month'),
-                Tab(text: 'Year'),
-              ],
-            ),
+          elevation: 0,
+          bottom: TabBar(
+            onTap: (val) {
+              final filters = ['Today', 'Week', 'Month', 'Year'];
+              provider.setDateFilter(filters[val]);
+              provider.getStatistics(context);
+            },
+            indicatorColor: Theme.of(context).primaryColor,
+            indicatorWeight: 3.0,
+            labelColor: Theme.of(context).primaryColor,
+            unselectedLabelColor: Colors.grey[600],
+            labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            unselectedLabelStyle: const TextStyle(fontSize: 16),
+            tabs: const [
+              Tab(text: 'Today'),
+              Tab(text: 'Week'),
+              Tab(text: 'Month'),
+              Tab(text: 'Year'),
+            ],
           ),
-          body: provider.withoutData && !provider.loading
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 50,
-                          color: Colors.red,
-                        ),
-                        const SizedBox(
-                          height: 10,
-                        ),
-                        Text(
-                          AppLocalizations.of(context)!.noGoals,
-                          style: TextStyle(
-                            fontSize: 18,
-                            color:
-                                Theme.of(context).textTheme.displayLarge!.color,
-                          ),
-                        ),
-                        const SizedBox(
-                          height: 10,
-                        ),
-                        Text(
-                          AppLocalizations.of(context)!.configureGoals,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            color:
-                                Theme.of(context).textTheme.displayLarge!.color,
-                          ),
-                        ),
-                        const SizedBox(
-                          height: 10,
-                        ),
-                        PrincipalButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const GoalsScreen(),
-                              ),
-                            ).then((value) {
-                              provider.getStatistics(context);
-                            });
-                          },
-                          text: AppLocalizations.of(context)!
-                              .configureGoalsButton,
-                        )
-                      ],
-                    ),
-                  ),
-                )
-              : RefreshIndicator(
-                  color: Colors.white,
-                  backgroundColor: Theme.of(context).primaryColor,
-                  onRefresh: () async {
-                    provider.getStatistics(context);
-                  },
-                  child: const SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: 5,
-                        ),
-                        WarmCaloriesWidget(),
-                        Row(
-                          children: [
-                            SitTimeWidget(),
-                            SitMidWidget(),
-                            StandUpTimeWidget(),
-                          ],
-                        ),
-                        GoalsWidget(),
-                        MostUsedMemoriesWidget(),
-                        SizedBox(
-                          height: 90,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-          //  TabBarView(
-          //     children: List.generate(4, (index) {
-          //   // Mismo widget reutilizado
-          //   return RefreshIndicator(
-          //     color: Colors.white,
-          //     backgroundColor: Theme.of(context).primaryColor,
-          //     onRefresh: () async {
-          //       provider.getStatistics(context);
-          //     },
-          //     child: const SingleChildScrollView(
-          //       child: Column(
-          //         children: [
-          //           SizedBox(
-          //             height: 5,
-          //           ),
-          //           WarmCaloriesWidget(),
-          //           Row(
-          //             children: [
-          //               SitTimeWidget(),
-          //               SitMidWidget(),
-          //               StandUpTimeWidget(),
-          //             ],
-          //           ),
-          //           GoalsWidget(),
-          //           MostUsedMemoriesWidget(),
-          //           SizedBox(
-          //             height: 90,
-          //           ),
-          //         ],
-          //       ),
-          //     ),
-          //   );
-          // })
-        );
-      }),
+        ),
+        body: provider.withoutData && !provider.loading
+            ? _EmptyStateView(provider: provider)
+            : RefreshIndicator(
+          color: Theme.of(context).primaryColor,
+          onRefresh: () => provider.getStatistics(context),
+          child: _StatisticsListView(provider: provider),
+        ),
+      ),
     );
   }
 
@@ -211,505 +77,159 @@ class _StatisticsScreenState extends State<StatisticsScreen>
   bool get wantKeepAlive => true;
 }
 
-class StandUpTimeWidget extends StatelessWidget {
-  const StandUpTimeWidget({
-    super.key,
-  });
+
+// --- WIDGETS DE LA UI (REFACTORIZADOS Y NUEVOS) ---
+
+/// Vista que se muestra cuando no hay metas configuradas.
+class _EmptyStateView extends StatelessWidget {
+  final StatisticsController provider;
+  const _EmptyStateView({required this.provider});
 
   @override
   Widget build(BuildContext context) {
-    var provider = Provider.of<StatisticsController>(context);
-    return Expanded(
+    final localizations = AppLocalizations.of(context)!;
+    return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: Theme.of(context).cardColor,
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).cardTheme.shadowColor!,
-                blurRadius: 10,
-                offset: const Offset(0, 0),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              SizedBox(
-                height: 45,
-                child: ListTile(
-                  title: Text(AppLocalizations.of(context)!.timeStanding,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: Theme.of(context).textTheme.displayLarge!.color,
-                      )),
-                ),
-              ),
-              const SizedBox(
-                height: 5,
-              ),
-              Divider(
-                color: Theme.of(context).cardTheme.surfaceTintColor,
-              ),
-              const SizedBox(
-                height: 5,
-              ),
-              CircleAvatar(
-                backgroundColor:
-                    Theme.of(context).primaryColor.withOpacity(0.2),
-                radius: 40,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/icons/stand_up.png',
-                      width: 30,
-                      color: Theme.of(context).textTheme.displayLarge!.color,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(
-                height: 5,
-              ),
-              provider.loading
-                  ? Shimmer.fromColors(
-                      baseColor:
-                          Theme.of(context).primaryColor.withOpacity(0.1),
-                      highlightColor:
-                          Theme.of(context).primaryColor.withOpacity(0.2),
-                      period: const Duration(milliseconds: 400),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 5),
-                        child: Container(
-                          height: 20.0,
-                          width: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8.0),
-                          ),
-                        ),
-                      ))
-                  : Text(
-                      provider.formatDuration(
-                          provider.statistics!.result!.timeStandingInSeconds!),
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Theme.of(context).textTheme.displayLarge!.color,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-              const SizedBox(
-                height: 10,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class SitTimeWidget extends StatelessWidget {
-  const SitTimeWidget({
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    var provider = Provider.of<StatisticsController>(context);
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.only(left: 10, top: 5, bottom: 5),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: Theme.of(context).cardColor,
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).cardTheme.shadowColor!,
-                blurRadius: 10,
-                offset: const Offset(0, 0),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              SizedBox(
-                height: 45,
-                child: ListTile(
-                  title: Text(AppLocalizations.of(context)!.timeSitting,
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color:
-                              Theme.of(context).textTheme.displayLarge!.color)),
-                ),
-              ),
-              const SizedBox(
-                height: 5,
-              ),
-              Divider(
-                color: Theme.of(context).cardTheme.surfaceTintColor,
-              ),
-              const SizedBox(
-                height: 5,
-              ),
-              CircleAvatar(
-                backgroundColor:
-                    Theme.of(context).primaryColor.withOpacity(0.2),
-                radius: 40,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/icons/sitting.png',
-                      width: 30,
-                      color: Theme.of(context).textTheme.displayLarge!.color,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(
-                height: 5,
-              ),
-              provider.loading
-                  ? Shimmer.fromColors(
-                      baseColor:
-                          Theme.of(context).primaryColor.withOpacity(0.1),
-                      highlightColor:
-                          Theme.of(context).primaryColor.withOpacity(0.2),
-                      period: const Duration(milliseconds: 400),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 5),
-                        child: Container(
-                          height: 20.0,
-                          width: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8.0),
-                          ),
-                        ),
-                      ))
-                  : Text(
-                      provider.formatDuration(
-                          provider.statistics!.result!.timeSeatedInSeconds!),
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Theme.of(context).textTheme.displayLarge!.color,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-              const SizedBox(
-                height: 10,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-//sitMidWidget
-class SitMidWidget extends StatelessWidget {
-  const SitMidWidget({
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    var provider = Provider.of<StatisticsController>(context);
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.only(left: 10, top: 5, bottom: 5),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: Theme.of(context).cardColor,
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).cardTheme.shadowColor!,
-                blurRadius: 10,
-                offset: const Offset(0, 0),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              SizedBox(
-                height: 45,
-                child: ListTile(
-                  title: Text(AppLocalizations.of(context)!.timeRest,
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color:
-                              Theme.of(context).textTheme.displayLarge!.color)),
-                ),
-              ),
-              const SizedBox(
-                height: 5,
-              ),
-              Divider(
-                color: Theme.of(context).cardTheme.surfaceTintColor,
-              ),
-              const SizedBox(
-                height: 5,
-              ),
-              CircleAvatar(
-                backgroundColor:
-                    Theme.of(context).primaryColor.withOpacity(0.2),
-                radius: 40,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/icons/rest.png',
-                      width: 30,
-                      color: Theme.of(context).textTheme.displayLarge!.color,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(
-                height: 5,
-              ),
-              provider.loading
-                  ? Shimmer.fromColors(
-                      baseColor:
-                          Theme.of(context).primaryColor.withOpacity(0.1),
-                      highlightColor:
-                          Theme.of(context).primaryColor.withOpacity(0.2),
-                      period: const Duration(milliseconds: 400),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 5),
-                        child: Container(
-                          height: 20.0,
-                          width: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8.0),
-                          ),
-                        ),
-                      ))
-                  : Text(
-                      provider.formatDuration(
-                          provider.statistics!.result!.timeMidInSeconds!),
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Theme.of(context).textTheme.displayLarge!.color,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-              const SizedBox(
-                height: 10,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class WarmCaloriesWidget extends StatelessWidget {
-  const WarmCaloriesWidget({
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    var provider = Provider.of<StatisticsController>(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).cardTheme.shadowColor!,
-              blurRadius: 10,
-              offset: const Offset(0, 0),
-            ),
-          ],
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              height: 45,
-              child: ListTile(
-                title: Text(AppLocalizations.of(context)!.caloriesBurned,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: Theme.of(context).textTheme.displayLarge!.color,
-                    )),
-                // trailing: const Icon(
-                //   Icons.arrow_forward_ios_rounded,
-                //   size: 14,
-                // ),
-              ),
+            Icon(
+              Icons.assignment_late_outlined, // Icono más neutral
+              size: 60,
+              color: Theme.of(context).primaryColor.withOpacity(0.7),
             ),
-            Divider(
-              color: Theme.of(context).cardTheme.surfaceTintColor,
+            const SizedBox(height: 20),
+            Text(
+              localizations.noGoals,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(
-              height: 5,
+            const SizedBox(height: 12),
+            Text(
+              localizations.configureGoals,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey[600], height: 1.5),
             ),
-            Row(
-              children: [
-                Expanded(
-                  child: CircleAvatar(
-                    backgroundColor:
-                        Theme.of(context).primaryColor.withOpacity(0.2),
-                    radius: 40,
-                    child: Icon(
-                      Icons.fireplace_rounded,
-                      color: Theme.of(context).textTheme.displayLarge!.color,
-                      size: 30,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Total',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(
-                        height: 5,
-                      ),
-                      provider.loading
-                          ? Shimmer.fromColors(
-                              baseColor: Theme.of(context)
-                                  .primaryColor
-                                  .withOpacity(0.1),
-                              highlightColor: Theme.of(context)
-                                  .primaryColor
-                                  .withOpacity(0.2),
-                              period: const Duration(milliseconds: 400),
-                              child: Container(
-                                height: 30.0,
-                                width: 80,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8.0),
-                                ),
-                              ))
-                          : Text(
-                              '${provider.statistics!.result!.caloriesBurned!.toStringAsFixed(1)} cal',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                            ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(
-              height: 20,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class GoalsWidget extends StatelessWidget {
-  const GoalsWidget({
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    var provider = Provider.of<StatisticsController>(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: Theme.of(context).cardColor,
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).cardTheme.shadowColor!,
-              blurRadius: 10,
-              offset: const Offset(0, 0),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            GestureDetector(
-              onTap: () {
+            const SizedBox(height: 24),
+            PrincipalButton(
+              onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const GoalsScreen(),
-                  ),
-                );
+                  MaterialPageRoute(builder: (context) => const GoalsScreen()),
+                ).then((_) => provider.getStatistics(context));
               },
-              child: SizedBox(
-                height: 45,
-                child: ListTile(
-                  title: Text(AppLocalizations.of(context)!.goals,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Theme.of(context).textTheme.displayLarge!.color,
-                      )),
-                  trailing: const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 14,
-                  ),
-                ),
+              text: localizations.configureGoalsButton,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// El contenido principal de la pantalla con la lista de estadísticas.
+class _StatisticsListView extends StatelessWidget {
+  final StatisticsController provider;
+  const _StatisticsListView({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    // Usamos un LayoutBuilder para asegurar que el SingleChildScrollView ocupe el espacio disponible
+    return LayoutBuilder(builder: (context, constraints) {
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(
+            children: [
+              _CaloriesCard(provider: provider),
+              const SizedBox(height: 16),
+              _TimeCardsRow(provider: provider),
+              const SizedBox(height: 16),
+              if (provider.statistics != null) ...[
+                _GoalsCard(provider: provider),
+                const SizedBox(height: 16),
+                _MostUsedMemoriesCard(provider: provider),
+              ],
+              const SizedBox(height: 90),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+}
+
+/// Tarjeta base reutilizable para un estilo consistente.
+class _StatCard extends StatelessWidget {
+  final Widget child;
+  const _StatCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Tarjeta grande para las calorías.
+class _CaloriesCard extends StatelessWidget {
+  final StatisticsController provider;
+  const _CaloriesCard({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
+    return _StatCard(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+              radius: 35,
+              child: Icon(
+                Icons.fireplace_rounded, // Icono original
+                color: Theme.of(context).primaryColor,
+                size: 30,
               ),
             ),
-            Divider(
-              color: Theme.of(context).cardTheme.surfaceTintColor,
-            ),
-            const SizedBox(
-              height: 5,
-            ),
-            if (provider.statistics != null)
-              Row(
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GoalChildWidget(
-                    title: AppLocalizations.of(context)!.timeSitting,
-                    value:
-                        "${provider.formatDuration(provider.statistics!.result!.timeSeatedInSeconds!)} / ${provider.formatDuration(provider.statistics!.result!.iSittingTimeSecondsGoal!)}",
-                    icon: Icons.chair,
-                    asset: 'assets/images/icons/sitting.png',
+                  Text(
+                    localizations.caloriesBurned,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  GoalChildWidget(
-                    title: AppLocalizations.of(context)!.timeStanding,
-                    value:
-                        "${provider.formatDuration(provider.statistics!.result!.timeStandingInSeconds!)} / ${provider.formatDuration(provider.statistics!.result!.iStandingTimeSecondsGoal!)}",
-                    icon: Icons.directions_walk,
-                    asset: 'assets/images/icons/stand_up.png',
-                  ),
-                  GoalChildWidget(
-                    title: AppLocalizations.of(context)!.caloriesBurned,
-                    value:
-                        "${provider.statistics!.result!.caloriesBurned!.toStringAsFixed(1)} / ${provider.statistics!.result!.iCaloriesToBurnGoal!.toStringAsFixed(1)}",
-                    icon: FontAwesomeIcons.fire,
+                  const SizedBox(height: 4),
+                  provider.loading
+                      ? _ShimmerText(width: 120, height: 28)
+                      : Text(
+                    '${provider.statistics!.result!.caloriesBurned!.toStringAsFixed(1)} cal',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
                   ),
                 ],
               ),
-            const SizedBox(
-              height: 20,
             ),
           ],
         ),
@@ -718,135 +238,85 @@ class GoalsWidget extends StatelessWidget {
   }
 }
 
-class GoalChildWidget extends StatelessWidget {
-  const GoalChildWidget({
-    super.key,
-    this.title,
-    this.value,
-    this.icon,
-    this.asset,
-  });
-
-  final String? title;
-  final String? value;
-  final IconData? icon;
-  final String? asset;
+/// Fila que contiene las 3 tarjetas de tiempo.
+class _TimeCardsRow extends StatelessWidget {
+  final StatisticsController provider;
+  const _TimeCardsRow({required this.provider});
 
   @override
   Widget build(BuildContext context) {
-    var provider = Provider.of<StatisticsController>(context);
-    return Expanded(
-      child: Column(
-        children: [
-          CircleAvatar(
-            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.2),
-            radius: 50,
-            child: asset != null
-                ? Image.asset(
-                    asset!,
-                    width: 30,
-                    color: Theme.of(context).textTheme.displayLarge!.color,
-                  )
-                : Icon(
-                    icon,
-                    color: Theme.of(context).textTheme.displayLarge!.color,
-                    size: 30,
-                  ),
+    final localizations = AppLocalizations.of(context)!;
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCardSmall(
+            title: localizations.timeSitting,
+            assetPath: 'assets/images/icons/sitting.png', // Icono original
+            value: provider.formatDuration(provider.statistics?.result?.timeSeatedInSeconds ?? 0),
+            isLoading: provider.loading,
           ),
-          const SizedBox(
-            height: 8,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatCardSmall(
+            title: localizations.timeRest,
+            assetPath: 'assets/images/icons/rest.png', // Icono original
+            value: provider.formatDuration(provider.statistics?.result?.timeMidInSeconds ?? 0),
+            isLoading: provider.loading,
           ),
-          Text(
-            title!,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).textTheme.displayLarge!.color,
-            ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatCardSmall(
+            title: localizations.timeStanding,
+            assetPath: 'assets/images/icons/stand_up.png', // Icono original
+            value: provider.formatDuration(provider.statistics?.result?.timeStandingInSeconds ?? 0),
+            isLoading: provider.loading,
           ),
-          provider.loading
-              ? Shimmer.fromColors(
-                  baseColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                  highlightColor:
-                      Theme.of(context).primaryColor.withOpacity(0.2),
-                  period: const Duration(milliseconds: 400),
-                  child: Container(
-                    height: 20.0,
-                    width: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                  ))
-              : Text(
-                  value!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class MostUsedMemoriesWidget extends StatelessWidget {
-  const MostUsedMemoriesWidget({
-    super.key,
+/// Widget refactorizado que reemplaza a SitTimeWidget, StandUpTimeWidget, etc.
+class _StatCardSmall extends StatelessWidget {
+  final String title;
+  final String assetPath;
+  final String value;
+  final bool isLoading;
+
+  const _StatCardSmall({
+    required this.title,
+    required this.assetPath,
+    required this.value,
+    required this.isLoading,
   });
 
   @override
   Widget build(BuildContext context) {
-    var provider = Provider.of<StatisticsController>(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: Theme.of(context).cardColor,
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).cardTheme.shadowColor!,
-              blurRadius: 10,
-              offset: const Offset(0, 0),
-            ),
-          ],
-        ),
+    return _StatCard(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
         child: Column(
           children: [
-            SizedBox(
-              height: 45,
-              child: ListTile(
-                title: Text(
-                    AppLocalizations.of(context)!.mostUsedMemoryPosition,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Theme.of(context).textTheme.displayLarge!.color,
-                    )),
+            Image.asset(
+              assetPath, // Usando el icono original
+              width: 30,
+              color: Theme.of(context).textTheme.bodyLarge!.color,
+            ),
+            const SizedBox(height: 12),
+            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            const SizedBox(height: 4),
+            isLoading
+                ? _ShimmerText(width: 50, height: 18)
+                : Text(
+              value,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).primaryColor,
               ),
-            ),
-            Divider(
-              color: Theme.of(context).cardTheme.surfaceTintColor,
-            ),
-            const SizedBox(
-              height: 5,
-            ),
-            if (provider.statistics != null)
-              Row(
-                children: provider.statistics!.result!.memoriMoreUse!
-                    .split(',')
-                    .map((e) {
-                  return MemoryChildWidget(
-                    value: e,
-                    icon: Icons.directions_walk,
-                  );
-                }).toList(),
-              ),
-            const SizedBox(
-              height: 20,
             ),
           ],
         ),
@@ -855,65 +325,170 @@ class MostUsedMemoriesWidget extends StatelessWidget {
   }
 }
 
-class MemoryChildWidget extends StatelessWidget {
-  const MemoryChildWidget({
-    super.key,
-    this.value,
-    this.icon,
-  });
-
-  final String? value;
-  final IconData? icon;
+/// Tarjeta para las metas (Goals).
+class _GoalsCard extends StatelessWidget {
+  final StatisticsController provider;
+  const _GoalsCard({required this.provider});
 
   @override
   Widget build(BuildContext context) {
-    var provider = Provider.of<StatisticsController>(context);
+    final localizations = AppLocalizations.of(context)!;
+    return _StatCard(
+      child: Column(
+        children: [
+          ListTile(
+            title: Text(localizations.goals, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const GoalsScreen())),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _CircleStat(
+                  assetPath: 'assets/images/icons/sitting.png', // Icono original
+                  label: localizations.timeSitting,
+                  value: "${provider.formatDuration(provider.statistics!.result!.timeSeatedInSeconds!)} / ${provider.formatDuration(provider.statistics!.result!.iSittingTimeSecondsGoal!)}",
+                  isLoading: provider.loading,
+                ),
+                _CircleStat(
+                  assetPath: 'assets/images/icons/stand_up.png', // Icono original
+                  label: localizations.timeStanding,
+                  value: "${provider.formatDuration(provider.statistics!.result!.timeStandingInSeconds!)} / ${provider.formatDuration(provider.statistics!.result!.iStandingTimeSecondsGoal!)}",
+                  isLoading: provider.loading,
+                ),
+                _CircleStat(
+                  iconData: FontAwesomeIcons.fire, // Icono original
+                  label: localizations.caloriesBurned,
+                  value: "${provider.statistics!.result!.caloriesBurned!.toStringAsFixed(1)} / ${provider.statistics!.result!.iCaloriesToBurnGoal!.toStringAsFixed(1)}",
+                  isLoading: provider.loading,
+                ),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+/// Tarjeta para las memorias más usadas.
+class _MostUsedMemoriesCard extends StatelessWidget {
+  final StatisticsController provider;
+  const _MostUsedMemoriesCard({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final memories = provider.statistics!.result!.memoriMoreUse!.split(',');
+    return _StatCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              AppLocalizations.of(context)!.mostUsedMemoryPosition,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: memories.map((e) {
+                final Map<String, dynamic> memoryAssets = {
+                  '1': {'asset': 'assets/images/icons/stand_up.png', 'text': AppLocalizations.of(context)!.standingMemory},
+                  '2': {'asset': 'assets/images/icons/rest.png', 'text': AppLocalizations.of(context)!.restMemory},
+                  '3': {'asset': 'assets/images/icons/sitting.png', 'text': AppLocalizations.of(context)!.sittingMemory},
+                };
+                return _CircleStat(
+                  assetPath: memoryAssets[e]!['asset'],
+                  label: "$e° ${memoryAssets[e]!['text']}",
+                  isLoading: provider.loading,
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Widget reutilizable para el ícono circular con texto debajo.
+class _CircleStat extends StatelessWidget {
+  final String? assetPath;
+  final IconData? iconData;
+  final String label;
+  final String? value;
+  final bool isLoading;
+
+  const _CircleStat({
+    this.assetPath,
+    this.iconData,
+    required this.label,
+    this.value,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Expanded(
       child: Column(
         children: [
           CircleAvatar(
-            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.2),
-            radius: 50,
-            child: provider.loading
-                ? Shimmer.fromColors(
-                    baseColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                    highlightColor:
-                        Theme.of(context).primaryColor.withOpacity(0.2),
-                    period: const Duration(milliseconds: 400),
-                    child: Container(
-                      height: 40.0,
-                      width: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(100.0),
-                      ),
-                    ))
-                : Image.asset(
-                    value! == "3"
-                        ? 'assets/images/icons/sitting.png'
-                        : value! == "2"
-                            ? 'assets/images/icons/rest.png'
-                            : 'assets/images/icons/stand_up.png',
-                    width: 30,
-                    color: Theme.of(context).textTheme.displayLarge!.color,
-                  ),
+            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+            radius: 35,
+            child: assetPath != null
+                ? Image.asset(assetPath!, width: 30, color: Theme.of(context).textTheme.bodyLarge!.color)
+                : Icon(iconData, size: 28, color: Theme.of(context).textTheme.bodyLarge!.color),
           ),
-          const SizedBox(
-            height: 8,
-          ),
+          const SizedBox(height: 8),
           Text(
-            value! == "3"
-                ? "$value° ${AppLocalizations.of(context)!.sittingMemory}"
-                : value! == "2"
-                    ? "$value° ${AppLocalizations.of(context)!.restMemory}"
-                    : "$value° ${AppLocalizations.of(context)!.standingMemory}",
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).primaryColor,
-            ),
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
+          if (value != null) ...[
+            const SizedBox(height: 4),
+            isLoading
+                ? _ShimmerText(width: 80, height: 14)
+                : Text(
+              value!,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+          ]
         ],
+      ),
+    );
+  }
+}
+
+/// Widget para el efecto de carga shimmer.
+class _ShimmerText extends StatelessWidget {
+  final double width;
+  final double height;
+  const _ShimmerText({this.width = 60, this.height = 16});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
   }
