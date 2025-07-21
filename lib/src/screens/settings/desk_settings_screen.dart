@@ -1,11 +1,13 @@
-import 'package:async_button_builder/async_button_builder.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:flutter/services.dart';
 import 'package:controller/src/controllers/user/user_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:iconsax/iconsax.dart';
 import '../../controllers/settings/measurement_controller.dart';
 import '../../widgets/backround_blur.dart';
+import '../../widgets/buttons/buttons.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class DeskSettingsScreen extends StatefulWidget {
   const DeskSettingsScreen({super.key});
@@ -15,11 +17,10 @@ class DeskSettingsScreen extends StatefulWidget {
 }
 
 class _DeskSettingsScreenState extends State<DeskSettingsScreen> {
-  TextEditingController heightController = TextEditingController();
-
-  TextEditingController weightController = TextEditingController();
-
-  GlobalKey<FormState> formKey = GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormState>();
+  final _heightController = TextEditingController();
+  final _weightController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -27,188 +28,236 @@ class _DeskSettingsScreenState extends State<DeskSettingsScreen> {
     _loadPhysicalData();
   }
 
-  void _loadPhysicalData() async {
-    var measurementController =
-        Provider.of<MeasurementController>(context, listen: false);
-    await measurementController.loadPreferences();
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    var height = prefs.getDouble('height') ?? 0;
-    var weight = prefs.getDouble('weight') ?? 0;
+  @override
+  void dispose() {
+    _heightController.dispose();
+    _weightController.dispose();
+    super.dispose();
+  }
 
-    heightController.text = height.toStringAsFixed(2);
-    weightController.text = weight.toStringAsFixed(2);
-    setState(() {});
+  void _loadPhysicalData() async {
+    final measurementController = context.read<MeasurementController>();
+    await measurementController.loadPreferences();
+
+    final prefs = await SharedPreferences.getInstance();
+    final height = prefs.getDouble('height') ?? 0.0;
+    final weight = prefs.getDouble('weight') ?? 0.0;
+
+    if (mounted) {
+      _heightController.text = height > 0 ? height.toStringAsFixed(2) : '';
+      _weightController.text = weight > 0 ? weight.toStringAsFixed(2) : '';
+      setState(() {});
+    }
+  }
+
+  Future<void> _onSave() async {
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    final userController = context.read<UserController>();
+    final height = double.tryParse(_heightController.text) ?? 0.0;
+    final weight = double.tryParse(_weightController.text) ?? 0.0;
+
+    try {
+      await userController.savePhysicalData(height, weight, context);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    var measurementController = Provider.of<MeasurementController>(context);
-    var userController = Provider.of<UserController>(context);
+    final localizations = AppLocalizations.of(context)!;
 
     return BackgroundBlur(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: Text(AppLocalizations.of(context)!.physicalSettings),
+          title: Text(localizations.physicalSettings),
           centerTitle: true,
           backgroundColor: Colors.transparent,
-          actions: [
-            AsyncButtonBuilder(
-              loadingWidget: SizedBox(
-                height: 15,
-                width: 15,
-                child: CircularProgressIndicator(
-                  color: Theme.of(context).primaryColor,
-                  strokeWidth: 3,
+          elevation: 0,
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      _UnitSettingsCard(onTap: () {
+                        Navigator.pushNamed(context, '/settings/measurements')
+                            .then((_) => _loadPhysicalData());
+                      }),
+                      const SizedBox(height: 16),
+                      _PhysicalDataCard(
+                        heightController: _heightController,
+                        weightController: _weightController,
+                      ),
+                      const SizedBox(height: 120),
+                    ],
+                  ),
                 ),
               ),
-              successWidget:
-                  Icon(Icons.check, color: Theme.of(context).primaryColor),
-              onPressed: () async {
-                FocusScope.of(context).unfocus();
-
-                var height = double.parse(heightController.text);
-                var weight = double.parse(weightController.text);
-
-                if (formKey.currentState!.validate()) {
-                  userController.savePhysicalData(height, weight, context);
-                  await Future.delayed(const Duration(seconds: 1));
-                }
-              },
-              builder: (context, child, callback, _) {
-                return TextButton(
-                  onPressed: callback,
-                  child: child,
-                );
-              },
-              child: Text(AppLocalizations.of(context)!.save,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
-        body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pushNamed(context, '/settings/measurements')
-                          .then(
-                        (value) {
-                          setState(() {
-                            _loadPhysicalData();
-                          });
-                        },
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                  AppLocalizations.of(context)!.changeMeasure,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontFamily: 'Airbnb',
-                                  )),
-                            ),
-                            const Icon(Icons.arrow_forward_ios_rounded,
-                                size: 16),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    AppLocalizations.of(context)!.myHeight,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: heightController,
-                    validator: (value) {
-                      if (value == null ||
-                          value.isEmpty ||
-                          value.startsWith('0')) {
-                        return AppLocalizations.of(context)!.enterHeight;
-                      }
-                      return null;
-                    },
-                    keyboardType: const TextInputType.numberWithOptions(
-                        signed: false, decimal: false),
-                    decoration: InputDecoration(
-                      hintText: '0',
-                      suffixIcon: Padding(
-                        padding: const EdgeInsets.only(bottom: 15.0),
-                        child: Align(
-                          alignment: Alignment.bottomCenter,
-                          widthFactor: 1.0,
-                          heightFactor: 1.0,
-                          child: Text(
-                              measurementController.getHeightUnitString(),
-                              style: const TextStyle(
-                                  fontSize: 14,
-                                  fontFamily: 'Airbnb',
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    AppLocalizations.of(context)!.myWeight,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: weightController,
-                    validator: (value) {
-                      if (value == null ||
-                          value.isEmpty ||
-                          value.startsWith('0')) {
-                        return AppLocalizations.of(context)!.enterWeight;
-                      }
-                      return null;
-                    },
-                    keyboardType: const TextInputType.numberWithOptions(
-                        signed: false, decimal: true),
-                    decoration: InputDecoration(
-                      hintText: '0',
-                      suffixIcon: Padding(
-                        padding: const EdgeInsets.only(bottom: 15.0),
-                        child: Align(
-                          alignment: Alignment.bottomCenter,
-                          widthFactor: 1.0,
-                          heightFactor: 1.0,
-                          child: Text(
-                              measurementController.getWeightUnitString(),
-                              style: const TextStyle(
-                                  fontSize: 14,
-                                  fontFamily: 'Airbnb',
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        floatingActionButton: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: RoundedButton(
+            text: localizations.save,
+            onPressed: _onSave,
+            isLoading: _isLoading,
+            padding: false,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- WIDGETS DE UI ---
+
+class _BaseCard extends StatelessWidget {
+  final Widget child;
+  const _BaseCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _UnitSettingsCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _UnitSettingsCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: _BaseCard(
+        child: ListTile(
+          leading: Icon(Iconsax.convert_3d_cube, color: Theme.of(context).primaryColor),
+          title: Text(
+            AppLocalizations.of(context)!.changeMeasure,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          trailing: const Icon(Iconsax.arrow_right_3, size: 18),
+        ),
+      ),
+    );
+  }
+}
+
+class _PhysicalDataCard extends StatelessWidget {
+  final TextEditingController heightController;
+  final TextEditingController weightController;
+
+  const _PhysicalDataCard({
+    required this.heightController,
+    required this.weightController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<MeasurementController>(
+      builder: (context, measurementController, child) {
+        return _BaseCard(
+          child: Column(
+            children: [
+              _DataInputTile(
+                icon: Iconsax.ruler,
+                label: AppLocalizations.of(context)!.myHeight,
+                controller: heightController,
+                unit: measurementController.getHeightUnitString(),
+                validator: (value) {
+                  if (value == null || value.isEmpty || double.tryParse(value) == 0) {
+                    return AppLocalizations.of(context)!.enterHeight;
+                  }
+                  return null;
+                },
+              ),
+              const Divider(height: 1, indent: 56, endIndent: 16), // Se ajusta el indent para alinear con el texto
+              _DataInputTile(
+                icon: Iconsax.weight,
+                label: AppLocalizations.of(context)!.myWeight,
+                controller: weightController,
+                unit: measurementController.getWeightUnitString(),
+                validator: (value) {
+                  if (value == null || value.isEmpty || double.tryParse(value) == 0) {
+                    return AppLocalizations.of(context)!.enterWeight;
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DataInputTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final TextEditingController controller;
+  final String unit;
+  final String? Function(String?)? validator;
+
+  const _DataInputTile({
+    required this.icon,
+    required this.label,
+    required this.controller,
+    required this.unit,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: TextFormField(
+        controller: controller,
+        validator: validator,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        // --- CAMBIO AQUÍ PARA EL FONDO TRANSPARENTE ---
+        decoration: InputDecoration(
+          labelText: label,
+          // Se quitan todos los bordes y el fondo
+          border: InputBorder.none,
+          filled: false,
+          // Se ajusta el padding para que no se sienta apretado
+          contentPadding: const EdgeInsets.symmetric(vertical: 2.0),
+        ),
+      ),
+      trailing: Text(
+        unit,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).primaryColor,
         ),
       ),
     );

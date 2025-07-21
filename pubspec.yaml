@@ -77,6 +77,7 @@ dependencies:
   image_picker: ^1.1.2
   record: ^6.0.0
   path_provider: ^2.0.11
+  iconsax: ^0.0.8
 
 dev_dependencies:
   flutter_test:

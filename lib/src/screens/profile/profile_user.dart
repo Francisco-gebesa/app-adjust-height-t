@@ -1,14 +1,12 @@
-import 'package:async_button_builder/async_button_builder.dart';
 import 'package:controller/routes/settings_routes.dart';
-import 'package:controller/src/widgets/toast_service.dart';
-import 'package:flutter/foundation.dart';
+import 'package:controller/src/widgets/buttons/buttons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:controller/src/controllers/auth/auth_controller.dart';
 import 'package:controller/src/widgets/backround_blur.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
-import 'dart:async';
+import 'package:iconsax/iconsax.dart';
 
 class AccountSettingsScreen extends StatefulWidget {
   const AccountSettingsScreen({super.key});
@@ -18,295 +16,297 @@ class AccountSettingsScreen extends StatefulWidget {
 }
 
 class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _countryCodeController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final List<String> _tapSequence = [];
-  Timer? _sequenceTimer;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _loadDataUser();
-    
-    // Escuchar cambios en el AuthController
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthController>().addListener(_onAuthDataChanged);
-    });
-  }
-  
-  void _onAuthDataChanged() {
-    if (mounted) {
       _loadDataUser();
-    }
+      context.read<AuthController>().addListener(_loadDataUser);
+    });
   }
 
   @override
   void dispose() {
-    _sequenceTimer?.cancel();
-    context.read<AuthController>().removeListener(_onAuthDataChanged);
+    context.read<AuthController>().removeListener(_loadDataUser);
+    _nameController.dispose();
+    _countryCodeController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
   void _loadDataUser() {
-    var authController = context.read<AuthController>();
-    _nameController.text = authController.userInfo!.name!;
-    _emailController.text = authController.userInfo!.email!;
-    
-    // Cargar datos del teléfono si existen
-    if (authController.userInfo!.countryCode != null) {
-      // Quitar el '+' si existe para mostrar solo el número
-      String countryCode = authController.userInfo!.countryCode!;
-      if (countryCode.startsWith('+')) {
-        countryCode = countryCode.substring(1);
+    if (!mounted) return;
+    final auth = context.read<AuthController>();
+    if (auth.userInfo != null) {
+      _nameController.text = auth.userInfo!.name ?? '';
+      _countryCodeController.text = (auth.userInfo!.countryCode ?? '').replaceAll('+', '');
+      _phoneController.text = auth.userInfo!.phoneNumber ?? '';
+    }
+  }
+
+  Future<void> _onSave() async {
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+
+    final auth = context.read<AuthController>();
+
+    try {
+      final nameChanged = _nameController.text.trim() != auth.userInfo!.name;
+      final phoneChanged = _countryCodeController.text.trim() != (auth.userInfo!.countryCode ?? '').replaceAll('+', '') ||
+          _phoneController.text.trim() != auth.userInfo!.phoneNumber;
+
+      if (nameChanged) {
+        await auth.changeName(_nameController.text.trim(), context);
       }
-      _countryCodeController.text = countryCode;
+
+      if (phoneChanged && _countryCodeController.text.isNotEmpty && _phoneController.text.isNotEmpty) {
+        if(mounted) {
+          await auth.updatePhoneNumber(_countryCodeController.text.trim(), _phoneController.text.trim(), context);
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
-    if (authController.userInfo!.phoneNumber != null) {
-      _phoneController.text = authController.userInfo!.phoneNumber!;
-    }
-    
-    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    var authController = context.read<AuthController>();
+    final auth = context.watch<AuthController>();
+    final localizations = AppLocalizations.of(context)!;
 
     return BackgroundBlur(
       child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text(localizations.profile),
+          centerTitle: true,
           backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: Text(AppLocalizations.of(context)!.profile),
-            centerTitle: true,
-            backgroundColor: Colors.transparent,
-            actions: [
-              AsyncButtonBuilder(
-                loadingWidget: SizedBox(
-                  height: 15,
-                  width: 15,
-                  child: CircularProgressIndicator(
-                    color: Theme.of(context).primaryColor,
-                    strokeWidth: 3,
+          elevation: 0,
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      _ProfileCard(
+                        nameController: _nameController,
+                        countryCodeController: _countryCodeController,
+                        phoneController: _phoneController,
+                        email: auth.userInfo?.email ?? 'N/A',
+                      ),
+                      const SizedBox(height: 24),
+                      _DeleteAccountButton(),
+                      const SizedBox(height: 120),
+                    ],
                   ),
                 ),
-                successWidget:
-                    Icon(Icons.check, color: Theme.of(context).primaryColor),
-                onPressed: () async {
-                  FocusScope.of(context).unfocus();
-                  
-                  // Actualizar nombre si cambió
-                  if (_nameController.text != authController.userInfo!.name) {
-                    await authController.changeName(
-                        _nameController.text, context);
-                  }
-                  
-                  // Actualizar teléfono si se proporcionó
-                  if (_countryCodeController.text.isNotEmpty && 
-                      _phoneController.text.isNotEmpty) {
-                    if (context.mounted) {
-                      await authController.updatePhoneNumber(
-                          _countryCodeController.text, 
-                          _phoneController.text, 
-                          context);
-                    }
-                  }
-                },
-                builder: (context, child, callback, _) {
-                  return TextButton(
-                    onPressed: callback,
-                    child: child,
-                  );
-                },
-                child: Text(AppLocalizations.of(context)!.save,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-          body: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 20),
-                  Center(
-                    child: CircleAvatar(
-                      radius: 50,
-                      backgroundColor:
-                          Theme.of(context).primaryColor.withOpacity(.1),
-                      child: const Icon(Icons.person,
-                          size: 40, color: Colors.white),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    AppLocalizations.of(context)!.name,
-                    style: TextStyle(
-                      color: Theme.of(context).iconTheme.color,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: InputDecoration(
-                      hintText: AppLocalizations.of(context)!.enterUsername,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.deny(RegExp(r'\s')),
-                      FilteringTextInputFormatter.allow(
-                          RegExp(r'[a-zA-Z0-9._-]')),
-                    ],
-                    validator: (value) {
-                      // Validar que contenga solo los caracteres permitidos
-                      var regExp = RegExp(r'^[a-zA-Z0-9._-]+$');
-                      if (value!.isEmpty) {
-                        return AppLocalizations.of(context)!
-                            .enterUsernameValidation;
-                      }
-                      if (!regExp.hasMatch(value)) {
-                        return AppLocalizations.of(context)!
-                            .enterNameValidation;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    AppLocalizations.of(context)!.phoneNumber,
-                    style: TextStyle(
-                      color: Theme.of(context).iconTheme.color,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextField(
-                          controller: _countryCodeController,
-                          keyboardType: TextInputType.phone,
-                          decoration: InputDecoration(
-                            hintText: '+52',
-                            labelText: AppLocalizations.of(context)!.countryCode,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 5,
-                        child: TextField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          decoration: InputDecoration(
-                            hintText: '1234567890',
-                            labelText: AppLocalizations.of(context)!.phoneNumber,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    AppLocalizations.of(context)!.email,
-                    style: TextStyle(
-                      color: Theme.of(context).iconTheme.color,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: () {
-                      print('email');
-                      setState(() {
-                        _tapSequence.add('email');
-                      });
-                    },
-                    child: TextField(
-                      controller: _emailController,
-                      enabled: false,
-                      decoration: InputDecoration(
-                        hintText: '',
-                        suffixIcon: Icon(Icons.lock,
-                            color: Colors.grey.withOpacity(.5), size: 15),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    AppLocalizations.of(context)!.password,
-                    style: TextStyle(
-                      color: Theme.of(context).iconTheme.color,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: () {
-                      print('password');
-                      setState(() {
-                        _tapSequence.add('password');
-                      });
-                    },
-                    child: TextField(
-                      enabled: false,
-                      decoration: InputDecoration(
-                        hintText: '********',
-                        suffixIcon: Icon(Icons.lock,
-                            color: Colors.grey.withOpacity(.5), size: 15),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context)
-                              .pushNamed('/account/change-password');
-                        },
-                        child: Text(
-                          AppLocalizations.of(context)!.changePassword,
-                          style: TextStyle(
-                            color: Theme.of(context).primaryColor,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () async {
-                          HapticFeedback.lightImpact();
-                          Navigator.of(context)
-                              .pushNamed(SettingsRoutes.deleteAccount);
-                        },
-                        child: Text(
-                          AppLocalizations.of(context)!.deleteAccount,
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                ],
               ),
             ),
-          )),
+          ],
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        floatingActionButton: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          // --- SOLUCIÓN DEFINITIVA: Usamos RoundedButton que sí tiene `isLoading` ---
+          child: RoundedButton(
+            text: localizations.save,
+            onPressed: _onSave,
+            isLoading: _isSaving,
+            padding: false, // El padding ya está en el widget padre
+          ),
+        ),
+      ),
     );
+  }
+}
+
+// --- El resto de los widgets se mantienen exactamente igual ---
+
+class _ProfileCard extends StatelessWidget {
+  final TextEditingController nameController;
+  final TextEditingController countryCodeController;
+  final TextEditingController phoneController;
+  final String email;
+
+  const _ProfileCard({
+    required this.nameController,
+    required this.countryCodeController,
+    required this.phoneController,
+    required this.email,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
+    return Container(
+      padding: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          CircleAvatar(
+            radius: 45,
+            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+            child: Icon(Iconsax.user, size: 40, color: Theme.of(context).primaryColor),
+          ),
+          const SizedBox(height: 20),
+          _InfoField(
+            label: localizations.name,
+            controller: nameController,
+            icon: Iconsax.user_edit,
+            validator: (value) => (value == null || value.trim().isEmpty) ? localizations.enterUsernameValidation : null,
+          ),
+          const _Divider(),
+          _PhoneField(
+            countryCodeController: countryCodeController,
+            phoneController: phoneController,
+          ),
+          const _Divider(),
+          _InfoTile(
+            label: localizations.email,
+            value: email,
+            icon: Iconsax.direct_inbox,
+          ),
+          const _Divider(),
+          _InfoTile(
+            label: localizations.password,
+            value: '********',
+            icon: Iconsax.key,
+            trailing: TextButton(
+              onPressed: () => Navigator.of(context).pushNamed('/account/change-password'),
+              child: Text(localizations.changePassword),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final IconData icon;
+  final String? Function(String?) validator;
+
+  const _InfoField({required this.label, required this.controller, required this.icon, required this.validator});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+        ),
+        validator: validator,
+      ),
+    );
+  }
+}
+
+class _PhoneField extends StatelessWidget {
+  final TextEditingController countryCodeController;
+  final TextEditingController phoneController;
+
+  const _PhoneField({required this.countryCodeController, required this.phoneController});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Iconsax.call),
+      title: Row(
+        children: [
+          SizedBox(
+            width: 70,
+            child: TextFormField(
+              controller: countryCodeController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Code', border: InputBorder.none, prefixText: '+'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextFormField(
+              controller: phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(labelText: AppLocalizations.of(context)!.phoneNumber, border: InputBorder.none),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Widget? trailing;
+
+  const _InfoTile({required this.label, required this.value, required this.icon, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label, style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color)),
+      subtitle: Text(value, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+      trailing: trailing,
+    );
+  }
+}
+
+class _DeleteAccountButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: () {
+        HapticFeedback.lightImpact();
+        Navigator.of(context).pushNamed(SettingsRoutes.deleteAccount);
+      },
+      icon: Icon(Iconsax.trash, color: Colors.red.shade400, size: 20),
+      label: Text(
+        AppLocalizations.of(context)!.deleteAccount,
+        style: TextStyle(fontSize: 16, color: Colors.red.shade400),
+      ),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  const _Divider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Divider(height: 1, indent: 16, endIndent: 16);
   }
 }

@@ -14,6 +14,7 @@ import '../../controllers/agent/agent_controller.dart';
 import '../statics/statics_screen.dart';
 import '../agent/agent_screen.dart';
 import '../agent/chat_screen.dart';
+import 'package:iconsax/iconsax.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -151,11 +152,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: Row(
                   children: [
-                    Expanded(child: _buildNavItem(Icons.home, 0)),
-                    Expanded(child: _buildNavItem(Icons.analytics, 1)),
-                    Expanded(child: _buildNavItem(Icons.settings, 2)),
+                    Expanded(child: _buildNavItem(Iconsax.home_2, 0)),
+                    Expanded(child: _buildNavItem(Iconsax.chart_21, 1)),
+                    Expanded(child: _buildNavItem(Iconsax.setting_2, 2)),
                     if (context.watch<AgentController>().isAgentAvailable)
-                      Expanded(child: _buildNavItem(Icons.message, 3)),
+                      Expanded(child: _buildNavItem(Iconsax.message_text_1, 3)),
                   ],
                 )),
           ],
