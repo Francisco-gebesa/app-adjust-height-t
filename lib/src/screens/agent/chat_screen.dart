@@ -1,5 +1,5 @@
 // lib/src/screens/agent/chat_screen.dart
-
+ 
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -20,14 +20,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-
+ 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
-
+ 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
-
+ 
 class _ChatScreenState extends State<ChatScreen> {
   // --- Variables de estado ---
   final List<types.Message> _messages = [];
@@ -39,7 +39,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String _formattedDate = '';
   String _language = 'es';
   String _testInit = '';
-
+ 
   // --- Variables para Grabar Audio y UI ---
   bool _isListening = false;
   final TextEditingController _textController = TextEditingController();
@@ -49,11 +49,11 @@ class _ChatScreenState extends State<ChatScreen> {
   final GlobalKey _actionsButtonKey = GlobalKey();
   bool _isActionsMenuVisible = false;
   static const MethodChannel _channel = MethodChannel('audio_session');
-
+ 
   // --- Variables para la animación dinámica ---
   StreamSubscription<Amplitude>? _amplitudeSubscription;
   double _currentAmplitude = 0.0;
-
+ 
   @override
   void initState() {
     super.initState();
@@ -67,7 +67,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
   }
-
+ 
   @override
   void dispose() {
     _amplitudeSubscription?.cancel();
@@ -76,7 +76,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _focusNode.dispose();
     super.dispose();
   }
-
+ 
   Future<void> _initializeChat() async {
     // Request microphone permission with better handling for iOS
     final status = await Permission.microphone.request();
@@ -107,18 +107,18 @@ class _ChatScreenState extends State<ChatScreen> {
     );
     if (mounted) setState(() {});
   }
-
+ 
   void _setFormattedDate() {
     final now = DateTime.now();
     _formattedDate = _language == 'es'
         ? DateFormat("d 'de' MMMM 'de' yyyy", 'es_ES').format(now)
         : DateFormat("MMMM d, yyyy", 'en_US').format(now);
   }
-
+ 
   void _addMessage(types.Message message) {
     if (mounted) setState(() => _messages.insert(0, message));
   }
-
+ 
   Future<void> _startListening() async {
     try {
       if (await _audioRecorder.hasPermission()) {
@@ -131,25 +131,25 @@ class _ChatScreenState extends State<ChatScreen> {
         _path = '${tempDir.path}/temp_audio.${Platform.isIOS ? 'm4a' : 'aac'}';
         
         // Use different config for iOS
-        final config = Platform.isIOS 
+        final config = Platform.isIOS
           ? const RecordConfig(
-              encoder: AudioEncoder.aacLc, 
+              encoder: AudioEncoder.aacLc,
               bitRate: 128000,
-              sampleRate: 44100, 
+              sampleRate: 44100,
               numChannels: 1
             )
           : const RecordConfig(
-              encoder: AudioEncoder.aacLc, 
-              sampleRate: 16000, 
+              encoder: AudioEncoder.aacLc,
+              sampleRate: 16000,
               numChannels: 1
             );
-
+ 
         print("Starting audio recording at: $_path");
         await _audioRecorder.start(config, path: _path!);
         if (mounted) {
           setState(() => _isListening = true);
         }
-
+ 
         _amplitudeSubscription = _audioRecorder
             .onAmplitudeChanged(const Duration(milliseconds: 100))
             .listen((amp) {
@@ -167,8 +167,8 @@ class _ChatScreenState extends State<ChatScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(_language == 'es' 
-                ? 'Permiso de micrófono no otorgado' 
+              content: Text(_language == 'es'
+                ? 'Permiso de micrófono no otorgado'
                 : 'Microphone permission not granted'),
             ),
           );
@@ -180,15 +180,15 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _isListening = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_language == 'es' 
-              ? 'Error al iniciar la grabación' 
+            content: Text(_language == 'es'
+              ? 'Error al iniciar la grabación'
               : 'Error starting recording'),
           ),
         );
       }
     }
   }
-
+ 
   Future<void> _stopListening() async {
     try {
       await _amplitudeSubscription?.cancel();
@@ -196,7 +196,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) {
         setState(() => _currentAmplitude = 0.0);
       }
-
+ 
       final recordedFilePath = await _audioRecorder.stop();
       print("Audio recording stopped. File path: $recordedFilePath");
       if (mounted) {
@@ -213,13 +213,13 @@ class _ChatScreenState extends State<ChatScreen> {
       print("Error stopping recorder: $e");
     }
   }
-
+ 
   Future<void> _transcribeAudio() async {
     if (_path == null || _path!.isEmpty) return;
     final apiKey = AppConfig.apiWhisper;
     final url = Uri.parse('https://api.openai.com/v1/audio/transcriptions');
     final audioFile = File(_path!);
-
+ 
     try {
       final fileSize = await audioFile.length();
       print("Audio file size: $fileSize bytes");
@@ -233,7 +233,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ..fields['model'] = 'whisper-1';
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-
+ 
       if (response.statusCode == 200) {
         final responseBody = jsonDecode(response.body);
         final transcript = responseBody['text'];
@@ -257,7 +257,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
   }
-
+ 
   Future<void> _handleSendPressed(types.PartialText message) async {
     if (message.text.trim().isEmpty) return;
     final userMessage = types.TextMessage(
@@ -270,7 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.clear();
     await _sendRequest(prompt: message.text);
   }
-
+ 
   Future<void> _handleFileSelection() async {
     final result = await FilePicker.platform
         .pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'docx', 'txt']);
@@ -298,7 +298,7 @@ class _ChatScreenState extends State<ChatScreen> {
         fileBase64: base64Encode(bytes),
         fileMimeType: mimeType);
   }
-
+ 
   Future<void> _sendRequest(
       {required String prompt, String? fileBase64, String? fileMimeType}) async {
     try {
@@ -344,7 +344,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) setState(() => _isBotTyping = false);
     }
   }
-
+ 
   Future<String?> _getJwtToken() async =>
       (await SharedPreferences.getInstance()).getString(TokenManager.TOKEN_KEY);
   Future<String?> _loadUUID() async =>
@@ -356,20 +356,22 @@ class _ChatScreenState extends State<ChatScreen> {
     final languageId = prefs.getInt('language') ?? 1;
     return languageId == 2 ? 'en' : 'es';
   }
-
+ 
   void _toggleActionsMenu() {
     if (_focusNode.hasFocus) _focusNode.unfocus();
     setState(() => _isActionsMenuVisible = !_isActionsMenuVisible);
   }
-
+ 
   void _hideActionsMenu() {
     if (_isActionsMenuVisible) setState(() => _isActionsMenuVisible = false);
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
+    final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+ 
     return SafeArea(
         child: Scaffold(
             resizeToAvoidBottomInset: true,
@@ -400,8 +402,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   _hideActionsMenu();
                 },
                 child: Stack(children: [
-                  Padding(
-                      padding: const EdgeInsets.only(bottom: 85.0),
+                  AnimatedPadding(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      padding: EdgeInsets.only(bottom: isKeyboardVisible ? 0.0 : 85.0),
                       child: Chat(
                           onAttachmentPressed: null,
                           messages: _messages,
@@ -445,7 +449,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   if (_isActionsMenuVisible) _buildActionsMenuOverlay()
                 ]))));
   }
-
+ 
   Widget _buildCustomInputBar() {
     final theme = Theme.of(context);
     final hasFocus = _focusNode.hasFocus;
@@ -528,7 +532,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       _handleSendPressed(types.PartialText(text: _textController.text)))
             ])));
   }
-
+ 
   // ******************** MODIFICACIÓN FINAL: Posición del Menú Elevada ********************
   Widget _buildActionsMenuOverlay() {
     final theme = Theme.of(context);
@@ -562,25 +566,25 @@ class _ChatScreenState extends State<ChatScreen> {
                 ]))));
   }
 }
-
+ 
 class VoiceWaveVisualizer extends StatefulWidget {
   final Color color;
   final double amplitude;
-
+ 
   const VoiceWaveVisualizer({
     super.key,
     required this.color,
     required this.amplitude,
   });
-
+ 
   @override
   State<VoiceWaveVisualizer> createState() => _VoiceWaveVisualizerState();
 }
-
+ 
 class _VoiceWaveVisualizerState extends State<VoiceWaveVisualizer>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-
+ 
   @override
   void initState() {
     super.initState();
@@ -589,13 +593,13 @@ class _VoiceWaveVisualizerState extends State<VoiceWaveVisualizer>
       duration: const Duration(milliseconds: 1500),
     )..repeat();
   }
-
+ 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -613,43 +617,43 @@ class _VoiceWaveVisualizerState extends State<VoiceWaveVisualizer>
     );
   }
 }
-
+ 
 // ******************** PINTOR DE ONDAS FINAL Y MEJORADO ********************
 class WavePainter extends CustomPainter {
   final double animationValue;
   final double amplitude;
   final Color color;
-
+ 
   WavePainter({
     required this.animationValue,
     required this.amplitude,
     required this.color,
   });
-
+ 
   @override
   void paint(Canvas canvas, Size size) {
     final smoothedAmplitude = Curves.easeOut.transform(amplitude);
     const fadeWidth = 15.0;
-
+ 
     // Lista de opacidades para cada una de las 3 ondas, de atrás hacia adelante.
     // Esto asegura que las tres ondas sean visibles.
     final opacities = [0.3, 0.5, 1.0];
-
+ 
     for (int i = 0; i < 3; i++) {
       final path = Path();
       // Se ajusta la altura para que las ondas tengan más diferencia entre sí y se vean más.
       final double waveHeight = (2.0 + (i * 3.0)) + (10.0 * smoothedAmplitude * (i + 1));
-
+ 
       final phaseShift = animationValue * 2 * pi * (i % 2 == 0 ? 1 : -1) * (1.0 + i * 0.5);
-
+ 
       path.moveTo(0, size.height / 2);
       for (double x = 0; x <= size.width; x++) {
         final y = size.height / 2 + (waveHeight / 2) * sin(x * 0.2 + phaseShift);
         path.lineTo(x, y);
       }
-
+ 
       final double finalOpacity = opacities[i] * max(0.4, smoothedAmplitude);
-
+ 
       final paint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0
@@ -663,11 +667,11 @@ class WavePainter extends CustomPainter {
           [0.0, 1.0],
           TileMode.clamp,
         );
-
+ 
       canvas.drawPath(path, paint);
     }
   }
-
+ 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
     return true;

@@ -12,7 +12,6 @@ import 'package:provider/provider.dart';
 import '../../../routes/auth_routes.dart';
 import '../../controllers/agent/agent_controller.dart';
 import '../statics/statics_screen.dart';
-import '../agent/agent_screen.dart';
 import '../agent/chat_screen.dart';
 import 'package:iconsax/iconsax.dart';
 
@@ -30,13 +29,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey menuKey = GlobalKey();
 
   changeIndex(int newIndex) {
-    // Verificar que el newIndex sea válido (no mayor que el número de pantallas disponibles)
     final bool isAgentAvailable =
         context.read<AgentController>().isAgentAvailable;
     final int maxIndex = isAgentAvailable ? 3 : 2;
 
     if (newIndex <= maxIndex) {
-       // Ocultar el teclado antes de cambiar de pantalla
+      // Ocultar el teclado antes de cambiar de pantalla
       FocusScope.of(context).unfocus();
       // Forzar el cierre del teclado del sistema
       SystemChannels.textInput.invokeMethod('TextInput.hide');
@@ -52,18 +50,16 @@ class _HomeScreenState extends State<HomeScreen> {
     context.read<BluetoothController>().listenToAdapterState();
     _listenToAuthState();
     context.read<AuthController>().initializeNotifications(context);
-    // Verifica la disponibilidad del agente al iniciar
     context.read<AgentController>().checkAgentAvailability();
   }
 
   void _listenToAuthState() {
     _authStateSubscription =
         FirebaseAuth.instance.authStateChanges().listen((User? user) {
-      if (user == null) {
-        // User is signed out or session expired
-        Navigator.of(context).pushReplacementNamed(AuthRoutes.welcome);
-      }
-    });
+          if (user == null) {
+            Navigator.of(context).pushReplacementNamed(AuthRoutes.welcome);
+          }
+        });
   }
 
   @override
@@ -74,6 +70,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Verificamos si el teclado está visible obteniendo el espacio que ocupa en la parte inferior.
+    final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return BackgroundBlur(
       child: Scaffold(
         resizeToAvoidBottomInset: false,
@@ -93,15 +92,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (context.watch<AgentController>().isAgentAvailable)
                   const ChatScreen()
                 else
-                  const SizedBox(), // Pantalla vacía como placeholder cuando el agente no está disponible
+                  const SizedBox(), // Pantalla vacía como placeholder
               ],
             ),
-            // if (deskController.deviceReady)
+            // El Align ahora envuelve el widget de animación.
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 20.0),
-                child: _buildCustomNavigationBar(),
+                // Usamos AnimatedOpacity para una transición de aparición/desaparición suave.
+                child: AnimatedOpacity(
+                  // Si el teclado está visible, la opacidad es 0 (totalmente transparente).
+                  // Si el teclado está oculto, la opacidad es 1 (totalmente visible).
+                  opacity: isKeyboardVisible ? 0.0 : 1.0,
+                  duration: const Duration(milliseconds: 250),
+                  // IgnorePointer evita que el usuario pueda tocar la barra cuando está invisible.
+                  child: IgnorePointer(
+                    ignoring: isKeyboardVisible,
+                    child: _buildCustomNavigationBar(),
+                  ),
+                ),
               ),
             ),
           ],
@@ -111,17 +121,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCustomNavigationBar() {
-    // Calcula la posición del indicador según el índice actual
     final bool isAgentAvailable =
         context.watch<AgentController>().isAgentAvailable;
-
-    // Calculamos el ancho de cada ítem según la cantidad de elementos en la barra
     final int totalItems = isAgentAvailable ? 4 : 3;
     final double navBarWidth =
         MediaQuery.of(context).size.width * 0.8; // 80% del ancho de pantalla
     final double itemWidth = navBarWidth / totalItems;
-
-    // Calculamos la posición del indicador
     final double adjustedPosition = index * itemWidth;
 
     return ClipRRect(
@@ -147,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(50),
                   border: Border.all(
                       color:
-                          Theme.of(context).navigationBarTheme.backgroundColor!,
+                      Theme.of(context).navigationBarTheme.backgroundColor!,
                       width: 1.5),
                 ),
                 child: Row(
@@ -155,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(child: _buildNavItem(Iconsax.home_2, 0)),
                     Expanded(child: _buildNavItem(Iconsax.chart_21, 1)),
                     Expanded(child: _buildNavItem(Iconsax.setting_2, 2)),
-                    if (context.watch<AgentController>().isAgentAvailable)
+                    if (isAgentAvailable)
                       Expanded(child: _buildNavItem(Iconsax.message_text_1, 3)),
                   ],
                 )),
@@ -165,7 +170,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Indicador que se moverá detrás del ícono seleccionado
   Widget _buildIndicatorBack() {
     final bool isAgentAvailable =
         context.watch<AgentController>().isAgentAvailable;
