@@ -7,6 +7,14 @@ import 'package:provider/provider.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:iconsax/iconsax.dart';
 
+// Modelo para representar un idioma
+class LanguageOption {
+  final String code;
+  final String name;
+
+  LanguageOption(this.code, this.name);
+}
+
 class PreferencesScreen extends StatelessWidget {
   const PreferencesScreen({super.key});
 
@@ -15,6 +23,12 @@ class PreferencesScreen extends StatelessWidget {
     final themeController = Provider.of<ThemeController>(context);
     final languageController = Provider.of<LanguageController>(context);
     final localizations = AppLocalizations.of(context)!;
+
+    // --- MEJORA: Lista de idiomas para evitar código hardcodeado ---
+    final List<LanguageOption> languages = [
+      LanguageOption('en', localizations.english),
+      LanguageOption('es', localizations.spanish),
+    ];
 
     return BackgroundBlur(
       child: Scaffold(
@@ -30,10 +44,8 @@ class PreferencesScreen extends StatelessWidget {
           children: [
             // Tarjeta para los ajustes de Apariencia
             _SettingsCard(
-              // --- CORRECCIÓN AQUÍ ---
-              // Usamos un texto fijo "Appearance" ya que la clave de localización no existía.
-              // Puedes cambiarlo por la clave correcta que tengas, por ej: localizations.theme
-              title: "Appearance",
+              // --- CORRECCIÓN 1: Usar clave de localización ---
+              title: "Theme", // Asumiendo que tienes 'appearance' en tus .arb
               icon: Iconsax.moon,
               child: ListTile(
                 title: Text(
@@ -42,11 +54,30 @@ class PreferencesScreen extends StatelessWidget {
                 ),
                 trailing: Switch(
                   value: themeController.themeMode == ThemeMode.dark,
-                  activeColor: Theme.of(context).primaryColor,
                   onChanged: (value) {
                     HapticFeedback.lightImpact();
                     themeController.toggleTheme(value);
                   },
+                  // --- CORRECCIÓN 2: Estilo moderno para el Switch ---
+                  thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
+                    if (states.contains(MaterialState.selected)) {
+                      return Colors.white; // Color del pulgar cuando está activo
+                    }
+                    return Colors.grey.shade400; // Color del pulgar cuando está inactivo
+                  }),
+                  trackColor: MaterialStateProperty.resolveWith<Color>((states) {
+                    if (states.contains(MaterialState.selected)) {
+                      return Theme.of(context).primaryColor; // Color de la pista cuando está activo
+                    }
+                    return Colors.grey.shade200; // Color de la pista cuando está inactivo
+                  }),
+                  trackOutlineColor: MaterialStateProperty.resolveWith<Color?>((states) {
+                    if (states.contains(MaterialState.selected)) {
+                      return Colors.transparent;
+                    }
+                    // Añade un borde sutil cuando está inactivo para mejor contraste
+                    return Colors.grey.shade400;
+                  }),
                 ),
               ),
             ),
@@ -56,19 +87,18 @@ class PreferencesScreen extends StatelessWidget {
               title: localizations.language,
               icon: Iconsax.global,
               child: Column(
-                children: [
-                  _LanguageTile(
-                    title: localizations.english,
-                    isSelected: languageController.currentLocale.languageCode == 'en',
-                    onTap: () => languageController.changeLanguage('en'),
-                  ),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  _LanguageTile(
-                    title: localizations.spanish,
-                    isSelected: languageController.currentLocale.languageCode == 'es',
-                    onTap: () => languageController.changeLanguage('es'),
-                  ),
-                ],
+                // --- MEJORA 2: Generar la lista de idiomas dinámicamente ---
+                children: List.generate(languages.length, (index) {
+                  final lang = languages[index];
+                  final isLast = index == languages.length - 1;
+
+                  return _LanguageTile(
+                    title: lang.name,
+                    isSelected: languageController.currentLocale.languageCode == lang.code,
+                    onTap: () => languageController.changeLanguage(lang.code),
+                    isLast: isLast, // Pasar si es el último elemento
+                  );
+                }),
               ),
             ),
           ],
@@ -78,7 +108,7 @@ class PreferencesScreen extends StatelessWidget {
   }
 }
 
-// --- WIDGETS DE UI REUTILIZABLES ---
+// --- WIDGETS DE UI REUTILIZABLES (con mejoras) ---
 
 class _SettingsCard extends StatelessWidget {
   final String title;
@@ -124,8 +154,7 @@ class _SettingsCard extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1),
-          child,
+          child, // Se elimina el Divider de aquí para dar más control al child
         ],
       ),
     );
@@ -136,38 +165,46 @@ class _LanguageTile extends StatelessWidget {
   final String title;
   final bool isSelected;
   final VoidCallback onTap;
+  final bool isLast; // Parámetro para saber si es el último
 
   const _LanguageTile({
     required this.title,
     required this.isSelected,
     required this.onTap,
+    this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-          color: isSelected ? Theme.of(context).primaryColor : null,
+    return Column(
+      children: [
+        if (!isLast) const Divider(height: 1, indent: 16, endIndent: 16),
+        ListTile(
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected ? Theme.of(context).primaryColor : null,
+            ),
+          ),
+          trailing: isSelected
+              ? Icon(Iconsax.tick_circle, color: Theme.of(context).primaryColor)
+              : null,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          selected: isSelected,
+          selectedTileColor: Theme.of(context).primaryColor.withOpacity(0.08),
+          // --- MEJORA 3: Lógica de borde simplificada ---
+          shape: RoundedRectangleBorder(
+            borderRadius: isLast
+                ? const BorderRadius.vertical(bottom: Radius.circular(20))
+                : BorderRadius.zero,
+          ),
         ),
-      ),
-      trailing: isSelected
-          ? Icon(Iconsax.tick_circle, color: Theme.of(context).primaryColor)
-          : null,
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      selected: isSelected,
-      selectedTileColor: Theme.of(context).primaryColor.withOpacity(0.08),
-      shape: RoundedRectangleBorder(
-        borderRadius: title == AppLocalizations.of(context)!.spanish
-            ? const BorderRadius.vertical(bottom: Radius.circular(20))
-            : BorderRadius.zero,
-      ),
+      ],
     );
   }
 }
