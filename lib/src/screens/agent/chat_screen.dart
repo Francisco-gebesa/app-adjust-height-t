@@ -8,6 +8,7 @@ import 'dart:ui' as ui; // Import para usar ui.Gradient
 import 'package:controller/src/api/token_manager.dart';
 import 'package:controller/src/config/app_config.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
@@ -47,6 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final FocusNode _focusNode = FocusNode();
   final GlobalKey _actionsButtonKey = GlobalKey();
   bool _isActionsMenuVisible = false;
+  static const MethodChannel _channel = MethodChannel('audio_session');
 
   // --- Variables para la animación dinámica ---
   StreamSubscription<Amplitude>? _amplitudeSubscription;
@@ -76,7 +78,20 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _initializeChat() async {
-    await Permission.microphone.request();
+    // Request microphone permission with better handling for iOS
+    final status = await Permission.microphone.request();
+    if (status.isDenied || status.isPermanentlyDenied) {
+      print("Microphone permission denied");
+    }
+    
+    // For iOS, also check speech recognition permission
+    if (Platform.isIOS) {
+      final speechStatus = await Permission.speech.request();
+      if (speechStatus.isDenied || speechStatus.isPermanentlyDenied) {
+        print("Speech recognition permission denied");
+      }
+    }
+    
     _language = await _getLanguage();
     _testInit = _language == 'es'
         ? '¡Hola! Soy Ascend. ¿En qué puedo ayudarte hoy?'
@@ -107,10 +122,29 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _startListening() async {
     try {
       if (await _audioRecorder.hasPermission()) {
+        if (Platform.isIOS) {
+          await _channel.invokeMethod('setAudioSession');
+          // Add small delay for iOS audio session setup
+          await Future.delayed(const Duration(milliseconds: 100));
+        }
         final tempDir = await getTemporaryDirectory();
-        _path = '${tempDir.path}/temp_audio.m4a';
-        const config = RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000, numChannels: 1);
+        _path = '${tempDir.path}/temp_audio.${Platform.isIOS ? 'm4a' : 'aac'}';
+        
+        // Use different config for iOS
+        final config = Platform.isIOS 
+          ? const RecordConfig(
+              encoder: AudioEncoder.aacLc, 
+              bitRate: 128000,
+              sampleRate: 44100, 
+              numChannels: 1
+            )
+          : const RecordConfig(
+              encoder: AudioEncoder.aacLc, 
+              sampleRate: 16000, 
+              numChannels: 1
+            );
 
+        print("Starting audio recording at: $_path");
         await _audioRecorder.start(config, path: _path!);
         if (mounted) {
           setState(() => _isListening = true);
@@ -128,9 +162,30 @@ class _ChatScreenState extends State<ChatScreen> {
             });
           }
         });
+      } else {
+        print("Microphone permission not granted");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_language == 'es' 
+                ? 'Permiso de micrófono no otorgado' 
+                : 'Microphone permission not granted'),
+            ),
+          );
+        }
       }
     } catch (e) {
       print("Error starting recorder: $e");
+      if (mounted) {
+        setState(() => _isListening = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_language == 'es' 
+              ? 'Error al iniciar la grabación' 
+              : 'Error starting recording'),
+          ),
+        );
+      }
     }
   }
 
@@ -143,6 +198,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       final recordedFilePath = await _audioRecorder.stop();
+      print("Audio recording stopped. File path: $recordedFilePath");
       if (mounted) {
         setState(() => _isListening = false);
       }
@@ -165,7 +221,12 @@ class _ChatScreenState extends State<ChatScreen> {
     final audioFile = File(_path!);
 
     try {
-      if (!await audioFile.exists() || await audioFile.length() < 1000) return;
+      final fileSize = await audioFile.length();
+      print("Audio file size: $fileSize bytes");
+      if (!await audioFile.exists() || fileSize < 1000) {
+        print("Audio file too small or doesn't exist");
+        return;
+      }
       final request = http.MultipartRequest('POST', url)
         ..headers['Authorization'] = 'Bearer $apiKey'
         ..files.add(await http.MultipartFile.fromPath('file', audioFile.path))

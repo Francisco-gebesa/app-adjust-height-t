@@ -20,7 +20,7 @@ import AVFoundation
     // Configurar AVAudioSession para permitir el uso del micrófono en WebView
     do {
       let audioSession = AVAudioSession.sharedInstance()
-      try audioSession.setCategory(.playAndRecord, mode: .default, options: [.allowBluetooth, .defaultToSpeaker, .mixWithOthers])
+      try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.allowBluetooth, .defaultToSpeaker])
       try audioSession.setActive(true)
     } catch {
       print("Error configurando AVAudioSession: \(error)")
@@ -28,7 +28,30 @@ import AVFoundation
 
     application.registerForRemoteNotifications()
     GeneratedPluginRegistrant.register(with: self)
+
+    let controller = window?.rootViewController as! FlutterViewController
+    let channel = FlutterMethodChannel(name: "audio_session", binaryMessenger: controller.binaryMessenger)
+    channel.setMethodCallHandler({ [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
+        guard call.method == "setAudioSession" else {
+            result(FlutterMethodNotImplemented)
+            return
+        }
+        self?.setAudioSession()
+        result(nil)
+    })
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  private func setAudioSession() {
+    do {
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.allowBluetooth, .defaultToSpeaker])
+        try audioSession.setActive(true)
+        print("Audio session configured successfully for recording")
+    } catch {
+        print("Error setting up audio session: \(error)")
+    }
   }
 
    override func application(
