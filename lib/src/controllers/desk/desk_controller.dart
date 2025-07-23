@@ -157,21 +157,29 @@ class DeskController extends ChangeNotifier {
           continue;
         }
 
+        print("🔍 [_discoverServices] Configuración encontrada para servicio: ${service.uuid.str}");
+        print("🔍 [_discoverServices] Config - normalStateUuids: ${config.normalStateUuids}");
+        print("🔍 [_discoverServices] Config - reportStateUuids: ${config.reportStateUuids}");
+        print("🔍 [_discoverServices] Config - deviceInfoUuids: ${config.deviceInfoUuids}");
+        
         // Encontramos una configuración válida, asignamos las características
         for (BluetoothCharacteristic characteristic
             in service.characteristics) {
           String charUuid = characteristic.uuid.str;
+          print("  📋 [_discoverServices] Característica encontrada: $charUuid");
 
           // Asignar característica de estado normal (control)
           if (config.normalStateUuids.contains(charUuid) ?? false) {
             targetCharacteristic = characteristic;
+            print("  ✅ [_discoverServices] targetCharacteristic asignada: $charUuid");
           }
 
           // Asignar característica de reporte de estado (altura)
           if (config.reportStateUuids.contains(charUuid) ?? false) {
             reportCharacteristic = characteristic;
+            print("  ✅ [_discoverServices] reportCharacteristic asignada: $charUuid");
             if (characteristic.properties.notify) {
-              print('  ℹ️ Setting up notifications...');
+              print('  ℹ️ [_discoverServices] Configurando notificaciones...');
               await _listenForNotifications(context);
 
               _sendInitialCommand();
@@ -190,6 +198,7 @@ class DeskController extends ChangeNotifier {
           // Asignar característica de información del dispositivo
           if (config.deviceInfoUuids.contains(charUuid) ?? false) {
             deviceInfoCharacteristic = characteristic;
+            print("  ✅ [_discoverServices] deviceInfoCharacteristic asignada: $charUuid");
             //set notify value to true only if the characteristic is fe63
             if (charUuid == 'fe63') {
               await characteristic.setNotifyValue(true);
@@ -281,6 +290,10 @@ class DeskController extends ChangeNotifier {
 
         heightMM = inchesToMm(heightIN!);
         if (!_wsStarted) {
+          print("\n🌐 [WebSocket] INICIANDO CONEXIÓN WEBSOCKET");
+          print("🌐 [WebSocket] Dispositivo: ${device!.advName}");
+          print("🌐 [WebSocket] UUID: ${device!.remoteId.str}");
+          
           socketSvc.connect(
             sUUID: device!.remoteId.str,
             // token: token,
@@ -288,8 +301,7 @@ class DeskController extends ChangeNotifier {
           final prefs = await SharedPreferences.getInstance();
           prefs.setString('sUUID', device!.remoteId.str);
           _wsStarted = true;
-          print("SI ENTRO");
-          print("UUID: ${device!.remoteId.str} - Nombre: ${device!.advName}");
+          print("🌐 [WebSocket] WebSocket iniciado = true");
                       if (await InternetConnection().hasInternetAccess) {
             final registerResponse = await DeskApi.registerDeskDevice(
               deviceName ?? "Desk",
@@ -380,8 +392,13 @@ class DeskController extends ChangeNotifier {
   }
 
   void _sendInitialCommand() {
-    targetCharacteristic
-        ?.write([0xF1, 0xF1, 0x07, 0x00, 0x07, 0x7E], withoutResponse: true);
+    print("📡 [_sendInitialCommand] Enviando comando inicial...");
+    if (targetCharacteristic != null) {
+      targetCharacteristic!.write([0xF1, 0xF1, 0x07, 0x00, 0x07, 0x7E], withoutResponse: true);
+      print("✅ [_sendInitialCommand] Comando inicial enviado");
+    } else {
+      print("❌ [_sendInitialCommand] targetCharacteristic es null");
+    }
   }
 
   void _activateDisplay() {
@@ -535,46 +552,63 @@ class DeskController extends ChangeNotifier {
 
   //move to specific height
   void moveToHeight(int mm) async {
+    print("\n🎯 [moveToHeight] INICIANDO MOVIMIENTO A $mm mm");
+    print("📱 [moveToHeight] Dispositivo: ${device?.advName ?? 'Sin nombre'}");
+    print("🔌 [moveToHeight] UUID del dispositivo: ${device?.remoteId.str ?? 'Sin UUID'}");
+    
     if (targetCharacteristic == null) {
-      print("❌ Característica de destino no disponible");
+      print("❌ [moveToHeight] Característica de destino no disponible");
+      print("❌ [moveToHeight] targetCharacteristic es null");
       return;
     }
+    print("✅ [moveToHeight] targetCharacteristic UUID: ${targetCharacteristic!.uuid.str}");
 
     if (device == null ||
         connectionState != BluetoothConnectionState.connected) {
-      print("❌ Dispositivo no conectado - estado: $connectionState");
+      print("❌ [moveToHeight] Dispositivo no conectado");
+      print("❌ [moveToHeight] device: ${device != null ? 'existe' : 'null'}");
+      print("❌ [moveToHeight] connectionState: $connectionState");
       return;
     }
+    print("✅ [moveToHeight] Dispositivo conectado correctamente");
 
     try {
       // Generar el comando con la altura deseada en pulgadas
       String hexStr = mm.toRadixString(16).padLeft(4, '0');
+      print("🔢 [moveToHeight] Altura en hex: 0x$hexStr");
 
       List<int> bytes = [];
       for (int i = 0; i < hexStr.length; i += 2) {
         bytes.add(int.parse(hexStr.substring(i, i + 2), radix: 16));
       }
-
-      print("📤 Comando generado para mover a $mm mm de altura: $bytes");
+      print("📊 [moveToHeight] Bytes generados: $bytes");
 
       List<int> command = periferial(bytes);
+      print("📤 [moveToHeight] Comando completo a enviar: ${command.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}");
 
       // Enviar el comando al targetCharacteristic
+      print("📡 [moveToHeight] Enviando comando vía Bluetooth...");
       await targetCharacteristic!
           .write(command, withoutResponse: true, allowLongWrite: false);
 
-      print("✅ Comando enviado exitosamente a la mesa");
+      print("✅ [moveToHeight] Comando enviado exitosamente a la mesa");
+      print("✅ [moveToHeight] Esperando respuesta del escritorio...\n");
     } catch (e) {
-      print("❌ Error al enviar comando a la mesa: $e");
+      print("❌ [moveToHeight] Error al enviar comando: $e");
+      print("❌ [moveToHeight] Tipo de error: ${e.runtimeType}");
+      print("❌ [moveToHeight] Stack trace: ${StackTrace.current}");
+      
       // Intentar reconectar si hay error
       if (device != null) {
         try {
+          print("🔄 [moveToHeight] Intentando reconectar...");
           await reconnect();
-          print("🔄 Reintentando envío después de reconexión...");
+          print("🔄 [moveToHeight] Esperando 500ms antes de reintentar...");
           await Future.delayed(const Duration(milliseconds: 500));
+          print("🔄 [moveToHeight] Reintentando comando...");
           moveToHeight(mm);
         } catch (reconnectError) {
-          print("❌ Error en reconexión: $reconnectError");
+          print("❌ [moveToHeight] Error en reconexión: $reconnectError");
         }
       }
     }

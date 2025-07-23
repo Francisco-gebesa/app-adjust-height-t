@@ -313,29 +313,97 @@ class _ChatScreenState extends State<ChatScreen> {
         'timezone': tz,
         'language': language,
       };
+      
+      print('=== SENDING REQUEST TO BACKEND ===');
+      print('URL: $_backendUrl');
+      print('Session ID: $_sessionId');
+      print('Prompt: $prompt');
+      print('User ID: $userId');
+      print('Language: $language');
+      print('Request Body: ${jsonEncode(requestBody)}');
+      
       final response = await http.post(Uri.parse(_backendUrl),
-          headers: {'Content-Type': 'application/json'}, body: jsonEncode(requestBody));
-      if (mounted) {
-        if (response.statusCode == 200) {
+          headers: {
+            'Content-Type': 'application/json',
+            'accept': 'application/json',
+          }, 
+          body: jsonEncode(requestBody));
+      
+      print('=== RESPONSE FROM BACKEND ===');
+      print('Status Code: ${response.statusCode}');
+      print('Response Headers: ${response.headers}');
+      print('Response Body: ${response.body}');
+      
+      if (!mounted) return;
+      
+      String botResponseText;
+      
+      if (response.statusCode == 200) {
+        try {
           final responseBody = jsonDecode(utf8.decode(response.bodyBytes));
-          _addMessage(types.TextMessage(
-              author: _bot,
-              createdAt: DateTime.now().millisecondsSinceEpoch,
-              id: const Uuid().v4(),
-              text: responseBody['output']));
-        } else {
-          _addMessage(types.TextMessage(
-              author: _bot,
-              createdAt: DateTime.now().millisecondsSinceEpoch,
-              id: const Uuid().v4(),
-              text: _language == 'es'
-                  ? 'Lo siento, algo salió mal. Por favor intenta de nuevo.'
-                  : 'Sorry, something went wrong. Please try again.'));
+          print('Parsed Response Body: $responseBody');
+          
+          if (responseBody is Map<String, dynamic>) {
+            // Buscar el mensaje en output.message o directamente en message
+            if (responseBody.containsKey('output') && responseBody['output'] is Map<String, dynamic>) {
+              final output = responseBody['output'] as Map<String, dynamic>;
+              print('Output field found: $output');
+              botResponseText = output['message'] ?? (_language == 'es'
+                  ? 'No se encontró mensaje en la respuesta.'
+                  : 'No message found in response.');
+            } else if (responseBody.containsKey('message')) {
+              print('Message field found directly');
+              botResponseText = responseBody['message'];
+            } else {
+              print('No recognized message format in response');
+              botResponseText = _language == 'es'
+                  ? 'Recibí una respuesta inesperada del servidor.'
+                  : 'Received an unexpected response from the server.';
+            }
+          } else {
+            print('Response is not a Map<String, dynamic>');
+            botResponseText = _language == 'es'
+                ? 'Recibí una respuesta inesperada del servidor.'
+                : 'Received an unexpected response from the server.';
+          }
+        } catch (parseError) {
+          print('Error parsing response: $parseError');
+          botResponseText = _language == 'es'
+              ? 'Error al procesar la respuesta del servidor.'
+              : 'Error processing server response.';
         }
+      } else {
+        print('Non-200 status code received');
+        botResponseText = _language == 'es'
+            ? 'Lo siento, algo salió mal (Error ${response.statusCode}). Por favor intenta de nuevo.'
+            : 'Sorry, something went wrong (Error ${response.statusCode}). Please try again.';
       }
+      
+      print('Final bot response text: $botResponseText');
+      
+      _addMessage(types.TextMessage(
+          author: _bot,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+          id: const Uuid().v4(),
+          text: botResponseText));
+          
     } catch (e) {
-      // Manejar error
+      print('=== ERROR IN REQUEST ===');
+      print('Error type: ${e.runtimeType}');
+      print('Error details: $e');
+      
+      if (mounted) {
+        _addMessage(types.TextMessage(
+          author: _bot,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+          id: const Uuid().v4(),
+          text: _language == 'es'
+              ? 'No se pudo conectar con el servidor. Revisa tu conexión.'
+              : 'Could not connect to the server. Please check your connection.',
+        ));
+      }
     } finally {
+      print('=== REQUEST COMPLETED ===');
       if (mounted) setState(() => _isBotTyping = false);
     }
   }
