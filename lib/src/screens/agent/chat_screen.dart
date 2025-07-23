@@ -128,21 +128,16 @@ class _ChatScreenState extends State<ChatScreen> {
           await Future.delayed(const Duration(milliseconds: 100));
         }
         final tempDir = await getTemporaryDirectory();
-        _path = '${tempDir.path}/temp_audio.${Platform.isIOS ? 'm4a' : 'aac'}';
+        // Unificar la extensión a .m4a para ambas plataformas
+        _path = '${tempDir.path}/temp_audio.m4a';
         
-        // Use different config for iOS
-        final config = Platform.isIOS 
-          ? const RecordConfig(
-              encoder: AudioEncoder.aacLc, 
-              bitRate: 128000,
-              sampleRate: 44100, 
-              numChannels: 1
-            )
-          : const RecordConfig(
-              encoder: AudioEncoder.aacLc, 
-              sampleRate: 16000, 
-              numChannels: 1
-            );
+        // Unificar la configuración de grabación para ambas plataformas a la que funciona en iOS
+        const config = RecordConfig(
+          encoder: AudioEncoder.aacLc, 
+          bitRate: 128000,
+          sampleRate: 44100, 
+          numChannels: 1
+        );
 
         print("Starting audio recording at: $_path");
         await _audioRecorder.start(config, path: _path!);
