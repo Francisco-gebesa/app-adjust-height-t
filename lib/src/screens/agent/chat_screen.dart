@@ -34,7 +34,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final String _sessionId = const Uuid().v4();
   final _user = const types.User(id: 'user');
   final _bot = const types.User(id: 'bot', firstName: 'Ascend');
-  final String _backendUrl = 'https://gebesa.app.n8n.cloud/webhook/c685cbe2-ea13-40f8-8dbc-0be198b';
+
+  // --- URL DEL BACKEND (¡IMPORTANTE! Debes configurar esto) ---
+  final String _backendUrl = 'http://192.168.20.74:8018/chat';
+
   bool _isBotTyping = false;
   String _formattedDate = '';
   String _language = 'es';
@@ -78,20 +81,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _initializeChat() async {
-    // Request microphone permission with better handling for iOS
     final status = await Permission.microphone.request();
     if (status.isDenied || status.isPermanentlyDenied) {
       print("Microphone permission denied");
     }
-    
-    // For iOS, also check speech recognition permission
+
     if (Platform.isIOS) {
       final speechStatus = await Permission.speech.request();
       if (speechStatus.isDenied || speechStatus.isPermanentlyDenied) {
         print("Speech recognition permission denied");
       }
     }
-    
+
     _language = await _getLanguage();
     _testInit = _language == 'es'
         ? '¡Hola! Soy Ascend. ¿En qué puedo ayudarte hoy?'
@@ -124,19 +125,16 @@ class _ChatScreenState extends State<ChatScreen> {
       if (await _audioRecorder.hasPermission()) {
         if (Platform.isIOS) {
           await _channel.invokeMethod('setAudioSession');
-          // Add small delay for iOS audio session setup
           await Future.delayed(const Duration(milliseconds: 100));
         }
         final tempDir = await getTemporaryDirectory();
-        // Unificar la extensión a .m4a para ambas plataformas
         _path = '${tempDir.path}/temp_audio.m4a';
-        
-        // Unificar la configuración de grabación para ambas plataformas a la que funciona en iOS
+
         const config = RecordConfig(
-          encoder: AudioEncoder.aacLc, 
-          bitRate: 128000,
-          sampleRate: 44100, 
-          numChannels: 1
+            encoder: AudioEncoder.aacLc,
+            bitRate: 128000,
+            sampleRate: 44100,
+            numChannels: 1
         );
 
         print("Starting audio recording at: $_path");
@@ -162,9 +160,9 @@ class _ChatScreenState extends State<ChatScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(_language == 'es' 
-                ? 'Permiso de micrófono no otorgado' 
-                : 'Microphone permission not granted'),
+              content: Text(_language == 'es'
+                  ? 'Permiso de micrófono no otorgado'
+                  : 'Microphone permission not granted'),
             ),
           );
         }
@@ -175,9 +173,9 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _isListening = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_language == 'es' 
-              ? 'Error al iniciar la grabación' 
-              : 'Error starting recording'),
+            content: Text(_language == 'es'
+                ? 'Error al iniciar la grabación'
+                : 'Error starting recording'),
           ),
         );
       }
@@ -263,6 +261,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _addMessage(userMessage);
     if (mounted) setState(() => _isBotTyping = true);
     _textController.clear();
+    _focusNode.unfocus();
     await _sendRequest(prompt: message.text);
   }
 
@@ -313,85 +312,41 @@ class _ChatScreenState extends State<ChatScreen> {
         'timezone': tz,
         'language': language,
       };
-      
-      print('=== SENDING REQUEST TO BACKEND ===');
-      print('URL: $_backendUrl');
-      print('Session ID: $_sessionId');
-      print('Prompt: $prompt');
-      print('User ID: $userId');
-      print('Language: $language');
-      print('Request Body: ${jsonEncode(requestBody)}');
-      
+
       final response = await http.post(Uri.parse(_backendUrl),
           headers: {
             'Content-Type': 'application/json',
             'accept': 'application/json',
-          }, 
+          },
           body: jsonEncode(requestBody));
-      
-      print('=== RESPONSE FROM BACKEND ===');
-      print('Status Code: ${response.statusCode}');
-      print('Response Headers: ${response.headers}');
-      print('Response Body: ${response.body}');
-      
+
       if (!mounted) return;
-      
+
       String botResponseText;
-      
+
       if (response.statusCode == 200) {
-        try {
-          final responseBody = jsonDecode(utf8.decode(response.bodyBytes));
-          print('Parsed Response Body: $responseBody');
-          
-          if (responseBody is Map<String, dynamic>) {
-            // Buscar el mensaje en output.message o directamente en message
-            if (responseBody.containsKey('output') && responseBody['output'] is Map<String, dynamic>) {
-              final output = responseBody['output'] as Map<String, dynamic>;
-              print('Output field found: $output');
-              botResponseText = output['message'] ?? (_language == 'es'
-                  ? 'No se encontró mensaje en la respuesta.'
-                  : 'No message found in response.');
-            } else if (responseBody.containsKey('message')) {
-              print('Message field found directly');
-              botResponseText = responseBody['message'];
-            } else {
-              print('No recognized message format in response');
-              botResponseText = _language == 'es'
-                  ? 'Recibí una respuesta inesperada del servidor.'
-                  : 'Received an unexpected response from the server.';
-            }
-          } else {
-            print('Response is not a Map<String, dynamic>');
-            botResponseText = _language == 'es'
-                ? 'Recibí una respuesta inesperada del servidor.'
-                : 'Received an unexpected response from the server.';
-          }
-        } catch (parseError) {
-          print('Error parsing response: $parseError');
+        final responseBody = jsonDecode(utf8.decode(response.bodyBytes));
+
+        if (responseBody is Map<String, dynamic> && responseBody.containsKey('message')) {
+          botResponseText = responseBody['message'];
+        } else {
           botResponseText = _language == 'es'
-              ? 'Error al procesar la respuesta del servidor.'
-              : 'Error processing server response.';
+              ? 'Recibí una respuesta inesperada del servidor.'
+              : 'Received an unexpected response from the server.';
         }
       } else {
-        print('Non-200 status code received');
         botResponseText = _language == 'es'
             ? 'Lo siento, algo salió mal (Error ${response.statusCode}). Por favor intenta de nuevo.'
             : 'Sorry, something went wrong (Error ${response.statusCode}). Please try again.';
       }
-      
-      print('Final bot response text: $botResponseText');
-      
+
       _addMessage(types.TextMessage(
           author: _bot,
           createdAt: DateTime.now().millisecondsSinceEpoch,
           id: const Uuid().v4(),
           text: botResponseText));
-          
+
     } catch (e) {
-      print('=== ERROR IN REQUEST ===');
-      print('Error type: ${e.runtimeType}');
-      print('Error details: $e');
-      
       if (mounted) {
         _addMessage(types.TextMessage(
           author: _bot,
@@ -402,8 +357,8 @@ class _ChatScreenState extends State<ChatScreen> {
               : 'Could not connect to the server. Please check your connection.',
         ));
       }
+      print("Error en _sendRequest: $e");
     } finally {
-      print('=== REQUEST COMPLETED ===');
       if (mounted) setState(() => _isBotTyping = false);
     }
   }
@@ -433,196 +388,224 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
+    final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return SafeArea(
-        child: Scaffold(
-            resizeToAvoidBottomInset: true,
-            backgroundColor: theme.scaffoldBackgroundColor,
-            appBar: AppBar(
-                scrolledUnderElevation: 1.0,
-                elevation: 0.5,
-                backgroundColor: theme.appBarTheme.backgroundColor,
-                foregroundColor: theme.appBarTheme.iconTheme?.color,
-                centerTitle: true,
-                title: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                  Text('Ascend',
-                      style: TextStyle(
-                          fontFamily: 'Airbnb',
-                          fontWeight: FontWeight.w600,
-                          fontSize: 18,
-                          color: theme.textTheme.titleLarge?.color)),
-                  if (_formattedDate.isNotEmpty)
-                    Text(_formattedDate,
-                        style: TextStyle(
-                            fontFamily: 'Airbnb',
-                            fontSize: 12,
-                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.7)))
-                ])),
-            body: GestureDetector(
-                onTap: () {
-                  _focusNode.unfocus();
-                  _hideActionsMenu();
-                },
-                child: Stack(children: [
-                  Padding(
-                      padding: const EdgeInsets.only(bottom: 85.0),
-                      child: Chat(
-                          onAttachmentPressed: null,
-                          messages: _messages,
-                          onSendPressed: (message) => _handleSendPressed(message),
-                          user: _user,
-                          customBottomWidget: _buildCustomInputBar(),
-                          typingIndicatorOptions:
-                          TypingIndicatorOptions(typingUsers: _isBotTyping ? [_bot] : []),
-                          theme: DefaultChatTheme(
-                              backgroundColor: Colors.transparent,
-                              primaryColor: theme.primaryColor,
-                              secondaryColor: isDarkMode
-                                  ? const Color(0xFF2E3D46)
-                                  : const Color(0xFFF0F4F7),
-                              sentMessageBodyTextStyle: const TextStyle(
-                                  fontFamily: 'Airbnb', color: Colors.white, fontSize: 16),
-                              receivedMessageBodyTextStyle: TextStyle(
-                                  fontFamily: 'Airbnb',
-                                  color: theme.textTheme.bodyLarge?.color ?? Colors.black87,
-                                  fontSize: 16),
-                              messageBorderRadius: 20.0,
-                              userNameTextStyle: TextStyle(
-                                  fontFamily: 'Airbnb',
-                                  color:
-                                  theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
-                                  fontWeight: FontWeight.bold),
-                              userAvatarTextStyle: const TextStyle(
-                                  fontFamily: 'Airbnb',
-                                  color: Colors.white,
-                                  fontSize: 12),
-                              typingIndicatorTheme: TypingIndicatorTheme(
-                                  bubbleColor: Colors.transparent,
-                                  animatedCirclesColor:
-                                  isDarkMode ? Colors.white70 : Colors.black54,
-                                  animatedCircleSize: 5,
-                                  bubbleBorder: BorderRadius.circular(20.0),
-                                  countAvatarColor: theme.primaryColor,
-                                  countTextColor: theme.colorScheme.onPrimary,
-                                  multipleUserTextStyle:
-                                  const TextStyle(fontFamily: 'Airbnb'))))),
-                  if (_isActionsMenuVisible) _buildActionsMenuOverlay()
-                ]))));
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+            scrolledUnderElevation: 1.0,
+            elevation: 0.5,
+            backgroundColor: theme.appBarTheme.backgroundColor,
+            foregroundColor: theme.appBarTheme.iconTheme?.color,
+            centerTitle: true,
+            title: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              Text('Ascend',
+                  style: TextStyle(
+                      fontFamily: 'Airbnb',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                      color: theme.textTheme.titleLarge?.color)),
+              if (_formattedDate.isNotEmpty)
+                Text(_formattedDate,
+                    style: TextStyle(
+                        fontFamily: 'Airbnb',
+                        fontSize: 12,
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(0.7)))
+            ])),
+        body: GestureDetector(
+          onTap: () {
+            _focusNode.unfocus();
+            _hideActionsMenu();
+          },
+          child: Stack(
+            children: [
+              AnimatedPadding(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.only(bottom: isKeyboardVisible ? 0.0 : 85.0),
+                child: Chat(
+                  onAttachmentPressed: null,
+                  messages: _messages,
+                  onSendPressed: (message) => _handleSendPressed(message),
+                  user: _user,
+                  customBottomWidget: _buildCustomInputBar(),
+                  typingIndicatorOptions:
+                  TypingIndicatorOptions(typingUsers: _isBotTyping ? [_bot] : []),
+                  theme: DefaultChatTheme(
+                    backgroundColor: Colors.transparent,
+                    primaryColor: theme.primaryColor,
+                    secondaryColor: isDarkMode
+                        ? const Color(0xFF2E3D46)
+                        : const Color(0xFFF0F4F7),
+                    sentMessageBodyTextStyle: const TextStyle(
+                        fontFamily: 'Airbnb', color: Colors.white, fontSize: 16),
+                    receivedMessageBodyTextStyle: TextStyle(
+                        fontFamily: 'Airbnb',
+                        color: theme.textTheme.bodyLarge?.color ?? Colors.black87,
+                        fontSize: 16),
+                    messageBorderRadius: 20.0,
+                    userNameTextStyle: TextStyle(
+                        fontFamily: 'Airbnb',
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
+                        fontWeight: FontWeight.bold),
+                    userAvatarTextStyle: const TextStyle(
+                        fontFamily: 'Airbnb',
+                        color: Colors.white,
+                        fontSize: 12),
+                    typingIndicatorTheme: TypingIndicatorTheme(
+                      bubbleColor: Colors.transparent,
+                      animatedCirclesColor: isDarkMode ? Colors.white70 : Colors.black54,
+                      animatedCircleSize: 5,
+                      bubbleBorder: BorderRadius.circular(20.0),
+                      countAvatarColor: theme.primaryColor,
+                      countTextColor: theme.colorScheme.onPrimary,
+                      multipleUserTextStyle: const TextStyle(fontFamily: 'Airbnb'),
+                    ),
+                  ),
+                ),
+              ),
+              if (_isActionsMenuVisible) _buildActionsMenuOverlay()
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildCustomInputBar() {
     final theme = Theme.of(context);
     final hasFocus = _focusNode.hasFocus;
     return SafeArea(
-        child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
-            child: Row(children: [
-              Expanded(
-                  child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      decoration: BoxDecoration(
-                          color: theme.brightness == Brightness.dark
-                              ? const Color(0xFF2E3D46)
-                              : const Color(0xFFF0F4F7),
-                          borderRadius: BorderRadius.circular(24),
-                          border: hasFocus
-                              ? Border.all(color: theme.primaryColor.withOpacity(0.8))
-                              : null,
-                          boxShadow: hasFocus
-                              ? [
-                            BoxShadow(
-                                color: theme.primaryColor.withOpacity(0.3),
-                                blurRadius: 4,
-                                spreadRadius: 1)
-                          ]
-                              : []),
-                      child: Row(children: [
-                        if (_isListening)
-                          VoiceWaveVisualizer(
-                              color: theme.primaryColor, amplitude: _currentAmplitude),
-                        Expanded(
-                            child: Padding(
-                                padding: EdgeInsets.only(left: _isListening ? 8 : 16, right: 8),
-                                child: TextField(
-                                    focusNode: _focusNode,
-                                    controller: _textController,
-                                    readOnly: _isListening,
-                                    keyboardType: TextInputType.multiline,
-                                    minLines: 1,
-                                    maxLines: 5,
-                                    style: TextStyle(
-                                        fontFamily: 'Airbnb',
-                                        color: theme.textTheme.bodyLarge?.color),
-                                    decoration: InputDecoration(
-                                        hintText: _isListening
-                                            ? (_language == 'es'
-                                            ? 'Grabando...'
-                                            : 'Recording...')
-                                            : (_language == 'es'
-                                            ? 'Escribe un mensaje...'
-                                            : 'Type a message...'),
-                                        hintStyle: TextStyle(
-                                            fontFamily: 'Airbnb',
-                                            color: theme.textTheme.bodySmall?.color),
-                                        border: InputBorder.none,
-                                        focusedBorder: InputBorder.none,
-                                        enabledBorder: InputBorder.none,
-                                        filled: false,
-                                        contentPadding:
-                                        const EdgeInsets.symmetric(vertical: 14.0)),
-                                    onTap: _hideActionsMenu,
-                                    onSubmitted: (text) =>
-                                        _handleSendPressed(types.PartialText(text: text))))),
-                        if (!_isListening)
-                          IconButton(
-                              key: _actionsButtonKey,
-                              icon: Icon(Icons.add_circle_outline,
-                                  color: theme.iconTheme.color?.withOpacity(0.7)),
-                              onPressed: _toggleActionsMenu)
-                      ]))),
-              const SizedBox(width: 8),
-              _isListening
-                  ? IconButton(
-                  icon: Icon(Icons.stop_circle, color: theme.primaryColor, size: 30),
-                  onPressed: _stopListening)
-                  : IconButton(
-                  icon: Icon(Icons.send, color: theme.primaryColor),
-                  onPressed: () =>
-                      _handleSendPressed(types.PartialText(text: _textController.text)))
-            ])));
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
+        child: Row(
+          children: [
+            Expanded(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                    color: theme.brightness == Brightness.dark
+                        ? const Color(0xFF2E3D46)
+                        : const Color(0xFFF0F4F7),
+                    borderRadius: BorderRadius.circular(24),
+                    border: hasFocus
+                        ? Border.all(color: theme.primaryColor.withOpacity(0.8))
+                        : null,
+                    boxShadow: hasFocus
+                        ? [
+                      BoxShadow(
+                          color: theme.primaryColor.withOpacity(0.3),
+                          blurRadius: 4,
+                          spreadRadius: 1)
+                    ]
+                        : []),
+                child: Row(
+                  children: [
+                    if (_isListening)
+                      VoiceWaveVisualizer(
+                          color: theme.primaryColor, amplitude: _currentAmplitude),
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(left: _isListening ? 8 : 16, right: 8),
+                        child: TextField(
+                          focusNode: _focusNode,
+                          controller: _textController,
+                          readOnly: _isListening,
+                          keyboardType: TextInputType.multiline,
+                          minLines: 1,
+                          maxLines: 5,
+                          style: TextStyle(
+                              fontFamily: 'Airbnb',
+                              color: theme.textTheme.bodyLarge?.color),
+                          decoration: InputDecoration(
+                              hintText: _isListening
+                                  ? (_language == 'es' ? 'Grabando...' : 'Recording...')
+                                  : (_language == 'es'
+                                  ? 'Escribe un mensaje...'
+                                  : 'Type a message...'),
+                              hintStyle: TextStyle(
+                                  fontFamily: 'Airbnb',
+                                  color: theme.textTheme.bodySmall?.color),
+                              border: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              filled: false,
+                              contentPadding:
+                              const EdgeInsets.symmetric(vertical: 14.0)),
+                          onTap: _hideActionsMenu,
+                          onSubmitted: (text) =>
+                              _handleSendPressed(types.PartialText(text: text)),
+                        ),
+                      ),
+                    ),
+                    if (!_isListening)
+                      IconButton(
+                          key: _actionsButtonKey,
+                          icon: Icon(Icons.add_circle_outline,
+                              color: theme.iconTheme.color?.withOpacity(0.7)),
+                          onPressed: _toggleActionsMenu)
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _isListening
+                ? IconButton(
+                icon: Icon(Icons.stop_circle, color: theme.primaryColor, size: 30),
+                onPressed: _stopListening)
+                : IconButton(
+              icon: Icon(Icons.send, color: theme.primaryColor),
+              onPressed: () =>
+                  _handleSendPressed(types.PartialText(text: _textController.text)),
+            )
+          ],
+        ),
+      ),
+    );
   }
 
-  // ******************** MODIFICACIÓN FINAL: Posición del Menú Elevada ********************
   Widget _buildActionsMenuOverlay() {
     final theme = Theme.of(context);
     return Positioned(
-        right: 16.0,
-        bottom: 150.0, // Elevado para un mayor espacio sobre el input.
-        child: Material(
-            elevation: 8.0,
-            borderRadius: BorderRadius.circular(12),
-            color: theme.brightness == Brightness.dark ? const Color(0xFF384852) : Colors.white,
-            child: Container(
-                width: 200,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  ListTile(
-                      leading: Icon(Icons.mic, color: theme.primaryColor),
-                      title: Text(_language == 'es' ? 'Grabar voz' : 'Record voice',
-                          style: const TextStyle(fontFamily: 'Airbnb')),
-                      onTap: () {
-                        _hideActionsMenu();
-                        _startListening();
-                      }),
-                  ListTile(
-                      leading: Icon(Icons.attach_file, color: theme.primaryColor),
-                      title: Text(_language == 'es' ? 'Adjuntar archivo' : 'Attach file',
-                          style: const TextStyle(fontFamily: 'Airbnb')),
-                      onTap: () {
-                        _hideActionsMenu();
-                        _handleFileSelection();
-                      })
-                ]))));
+      right: 16.0,
+      bottom: 150.0,
+      child: Material(
+        elevation: 8.0,
+        borderRadius: BorderRadius.circular(12),
+        color: theme.brightness == Brightness.dark
+            ? const Color(0xFF384852)
+            : Colors.white,
+        child: Container(
+          width: 200,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                  leading: Icon(Icons.mic, color: theme.primaryColor),
+                  title: Text(_language == 'es' ? 'Grabar voz' : 'Record voice',
+                      style: const TextStyle(fontFamily: 'Airbnb')),
+                  onTap: () {
+                    _hideActionsMenu();
+                    _startListening();
+                  }),
+              ListTile(
+                  leading: Icon(Icons.attach_file, color: theme.primaryColor),
+                  title: Text(
+                      _language == 'es' ? 'Adjuntar archivo' : 'Attach file',
+                      style: const TextStyle(fontFamily: 'Airbnb')),
+                  onTap: () {
+                    _hideActionsMenu();
+                    _handleFileSelection();
+                  })
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -677,7 +660,6 @@ class _VoiceWaveVisualizerState extends State<VoiceWaveVisualizer>
   }
 }
 
-// ******************** PINTOR DE ONDAS FINAL Y MEJORADO ********************
 class WavePainter extends CustomPainter {
   final double animationValue;
   final double amplitude;
@@ -693,16 +675,11 @@ class WavePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final smoothedAmplitude = Curves.easeOut.transform(amplitude);
     const fadeWidth = 15.0;
-
-    // Lista de opacidades para cada una de las 3 ondas, de atrás hacia adelante.
-    // Esto asegura que las tres ondas sean visibles.
     final opacities = [0.3, 0.5, 1.0];
 
     for (int i = 0; i < 3; i++) {
       final path = Path();
-      // Se ajusta la altura para que las ondas tengan más diferencia entre sí y se vean más.
       final double waveHeight = (2.0 + (i * 3.0)) + (10.0 * smoothedAmplitude * (i + 1));
-
       final phaseShift = animationValue * 2 * pi * (i % 2 == 0 ? 1 : -1) * (1.0 + i * 0.5);
 
       path.moveTo(0, size.height / 2);
@@ -712,17 +689,13 @@ class WavePainter extends CustomPainter {
       }
 
       final double finalOpacity = opacities[i] * max(0.4, smoothedAmplitude);
-
       final paint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0
         ..shader = ui.Gradient.linear(
           Offset.zero,
           const Offset(fadeWidth, 0),
-          [
-            Colors.transparent,
-            color.withOpacity(finalOpacity),
-          ],
+          [Colors.transparent, color.withOpacity(finalOpacity)],
           [0.0, 1.0],
           TileMode.clamp,
         );

@@ -573,7 +573,11 @@ class DeskController extends ChangeNotifier {
     print("✅ [moveToHeight] Dispositivo conectado correctamente");
 
     try {
-      // Generar el comando con la altura deseada en pulgadas
+      // El dispositivo parece esperar el valor en milímetros directamente
+      // Convertimos el valor de mm a hex correctamente
+      print("📏 [moveToHeight] Altura solicitada: $mm mm");
+      
+      // Convertir milímetros directamente a hex (sin conversión de unidades)
       String hexStr = mm.toRadixString(16).padLeft(4, '0');
       print("🔢 [moveToHeight] Altura en hex: 0x$hexStr");
 
@@ -643,11 +647,11 @@ class DeskController extends ChangeNotifier {
   List<int> inchToHex(double inch) {
     int inches = inch.round();
 
-    // Convertir a milésimas de pulgada
-    int milliInches = (inches * 25.5).toInt();
+    // Convertir a milímetros (1 pulgada = 25.4 mm)
+    int mm = (inches * 25.4).toInt();
 
     // Convertir a cadena hexadecimal
-    String hexStr = milliInches.toRadixString(16).padLeft(4, '0');
+    String hexStr = mm.toRadixString(16).padLeft(4, '0');
 
     List<int> bytes = [];
     for (int i = 0; i < hexStr.length; i += 2) {

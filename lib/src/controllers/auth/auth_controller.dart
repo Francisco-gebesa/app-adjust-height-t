@@ -281,6 +281,23 @@ class AuthController with ChangeNotifier {
         _firebaseUser = userCredential.user;
         await _auth.currentUser!.updateDisplayName(name);
         UserResponse userResponse = userResponseFromJson(response['data']);
+        
+        // Debug: Imprimir el token JWT
+        if (userResponse.token != null) {
+          print('\n🔐 ===== TOKEN JWT (Sign Up) =====');
+          print('Token: ${userResponse.token!.result}');
+          print('Expires in: ${userResponse.token!.expiresIn} seconds');
+          
+          // Decodificar y mostrar el contenido del JWT
+          try {
+            final decodedToken = JwtDecoder.decode(userResponse.token!.result!);
+            print('Decoded JWT: ${json.encode(decodedToken)}');
+          } catch (e) {
+            print('Error decodificando JWT: $e');
+          }
+          print('🔐 =============================\n');
+        }
+        
         SharedPreferences prefs = await SharedPreferences.getInstance();
         prefs.setBool("newUser", true);
         await _saveUserData(userResponse);
@@ -328,6 +345,23 @@ class AuthController with ChangeNotifier {
         prefs.setBool("newUser", false);
         UserResponse userResponse = userResponseFromJson(response['data']);
         print(response['data']);
+        
+        // Debug: Imprimir el token JWT
+        if (userResponse.token != null) {
+          print('\n🔐 ===== TOKEN JWT =====');
+          print('Token: ${userResponse.token!.result}');
+          print('Expires in: ${userResponse.token!.expiresIn} seconds');
+          
+          // Decodificar y mostrar el contenido del JWT
+          try {
+            final decodedToken = JwtDecoder.decode(userResponse.token!.result!);
+            print('Decoded JWT: ${json.encode(decodedToken)}');
+          } catch (e) {
+            print('Error decodificando JWT: $e');
+          }
+          print('🔐 ==================\n');
+        }
+        
         _userInfo = userResponse.user;
         await _saveUserData(userResponse);
         notifyListeners();
@@ -403,6 +437,23 @@ class AuthController with ChangeNotifier {
           if (response['success']) {
             UserResponse userResponse = userResponseFromJson(response['data']);
             print(response['data']);
+            
+            // Debug: Imprimir el token JWT
+            if (userResponse.token != null) {
+              print('\n🔐 ===== TOKEN JWT (Google Login) =====');
+              print('Token: ${userResponse.token!.result}');
+              print('Expires in: ${userResponse.token!.expiresIn} seconds');
+              
+              // Decodificar y mostrar el contenido del JWT
+              try {
+                final decodedToken = JwtDecoder.decode(userResponse.token!.result!);
+                print('Decoded JWT: ${json.encode(decodedToken)}');
+              } catch (e) {
+                print('Error decodificando JWT: $e');
+              }
+              print('🔐 ================================\n');
+            }
+            
             SharedPreferences prefs = await SharedPreferences.getInstance();
             prefs.setBool("newUser", false);
             await _saveUserData(userResponse);
